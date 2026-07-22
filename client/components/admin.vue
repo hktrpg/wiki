@@ -11,7 +11,7 @@
           v-list-item(to='/dashboard', color='primary')
             v-list-item-avatar(size='24', tile): v-icon mdi-view-dashboard-variant
             v-list-item-title {{ $t('admin:dashboard.title') }}
-          template(v-if='hasPermission([`manage:system`, `manage:navigation`, `write:pages`, `manage:pages`, `delete:pages`])')
+          template(v-if='hasPermission([`manage:system`, `manage:navigation`, `write:pages`, `manage:pages`, `delete:pages`, `approve:pages`])')
             v-divider.my-2
             v-subheader.pl-4 {{ $t('admin:nav.site') }}
             v-list-item(to='/general', color='primary', v-if='hasPermission(`manage:system`)')
@@ -29,6 +29,9 @@
               v-list-item-action(style='min-width:auto;')
                 v-chip(x-small, :color='$vuetify.theme.dark ? `grey darken-3-d4` : `grey lighten-5`')
                   .caption.grey--text {{ info.pagesTotal }}
+            v-list-item(to='/page-reviews', color='primary', v-if='hasPermission([`manage:system`, `approve:pages`])')
+              v-list-item-avatar(size='24', tile): v-icon mdi-file-check-outline
+              v-list-item-title Page Reviews
             v-list-item(to='/tags', v-if='hasPermission([`manage:system`])')
               v-list-item-avatar(size='24', tile): v-icon mdi-tag-multiple
               v-list-item-title {{ $t('admin:tags.title') }}
@@ -151,6 +154,7 @@ const router = new VueRouter({
     { path: '/pages', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-pages.vue') },
     { path: '/pages/:id(\\d+)', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-pages-edit.vue') },
     { path: '/pages/visualize', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-pages-visualize.vue') },
+    { path: '/page-reviews', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-page-reviews.vue') },
     { path: '/tags', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-tags.vue') },
     { path: '/theme', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-theme.vue') },
     { path: '/groups', component: () => import(/* webpackChunkName: "admin" */ './admin/admin-groups.vue') },

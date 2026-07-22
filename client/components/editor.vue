@@ -24,8 +24,8 @@
           :class='{ "is-icon": $vuetify.breakpoint.mdAndDown }'
           )
           v-icon(color='green', :left='$vuetify.breakpoint.lgAndUp') mdi-check
-          span.grey--text(v-if='$vuetify.breakpoint.lgAndUp && mode !== `create` && !isDirty') {{ $t('editor:save.saved') }}
-          span.white--text(v-else-if='$vuetify.breakpoint.lgAndUp') {{ mode === 'create' ? $t('common:actions.create') : $t('common:actions.save') }}
+          span.grey--text(v-if='$vuetify.breakpoint.lgAndUp && mode !== `create` && !isDirty && !isPendingOnly') {{ $t('editor:save.saved') }}
+          span.white--text(v-else-if='$vuetify.breakpoint.lgAndUp') {{ saveActionLabel }}
         v-btn.animated.fadeInDown.wait-p1s(
           text
           color='blue'
@@ -50,6 +50,27 @@
       editor-modal-editorselect(v-model='dialogEditorSelector')
       editor-modal-unsaved(v-model='dialogUnsaved', @discard='exitGo')
       component(:is='activeModal')
+
+      v-dialog(v-model='dialogChangeReason', max-width='520', persistent)
+        v-card
+          v-card-title Submit for Review
+          v-card-text
+            .body-2.mb-3 Your changes will not be published until an approver reviews them.
+            v-textarea(
+              v-model='changeReasonText'
+              label='Change reason'
+              hint='Briefly describe what you changed and why'
+              persistent-hint
+              outlined
+              counter='500'
+              :rules='[v => (!!v && v.trim().length > 0) || `Change reason is required`]'
+              autofocus
+              rows='3'
+            )
+          v-card-actions
+            v-spacer
+            v-btn(text, @click='dialogChangeReason = false') Cancel
+            v-btn(color='primary', depressed, @click='confirmPendingSave') Submit
 
     loader(v-model='dialogProgress', :title='$t(`editor:save.processing`)', :subtitle='$t(`editor:save.pleaseWait`)')
     notify
@@ -149,6 +170,14 @@ export default {
       type: String,
       default: new Date().toISOString()
     },
+    changeReason: {
+      type: String,
+      default: ''
+    },
+    pendingReviewId: {
+      type: Number,
+      default: 0
+    },
     effectivePermissions: {
       type: String,
       default: ''
@@ -162,6 +191,9 @@ export default {
       dialogProgress: false,
       dialogEditorSelector: false,
       dialogUnsaved: false,
+      dialogChangeReason: false,
+      pendingSaveClose: false,
+      changeReasonText: '',
       exitConfirmed: false,
       initContentParsed: '',
       savedState: {
@@ -184,6 +216,16 @@ export default {
     currentPageTitle: sync('page/title'),
     checkoutDateActive: sync('editor/checkoutDateActive'),
     currentStyling: get('page/scriptCss'),
+    pagePerms: get('page/effectivePermissions@pages'),
+    isPendingOnly () {
+      return !!(this.pagePerms && this.pagePerms.pending && !this.pagePerms.write && !this.pagePerms.manage)
+    },
+    saveActionLabel () {
+      if (this.isPendingOnly) {
+        return 'Submit for Review'
+      }
+      return this.mode === 'create' ? this.$t('common:actions.create') : this.$t('common:actions.save')
+    },
     isDirty () {
       return _.some([
         this.initContentParsed !== this.$store.get('editor/content'),
@@ -230,6 +272,7 @@ export default {
     this.setCurrentSavedState()
 
     this.checkoutDateActive = this.checkoutDate
+    this.changeReasonText = this.changeReason || ''
 
     if (this.effectivePermissions) {
       this.$store.set('page/effectivePermissions', JSON.parse(Buffer.from(this.effectivePermissions, 'base64').toString()))
@@ -277,6 +320,26 @@ export default {
       this.$root.$emit('saveConflict')
     },
     async save({ rethrow = false, overwrite = false } = {}) {
+      if (this.isPendingOnly) {
+        this.pendingSaveClose = false
+        this.dialogChangeReason = true
+        return
+      }
+      return this.performSave({ rethrow, overwrite })
+    },
+    async confirmPendingSave() {
+      if (!_.trim(this.changeReasonText)) {
+        this.$store.commit('showNotification', {
+          message: 'Change reason is required',
+          style: 'error',
+          icon: 'warning'
+        })
+        return
+      }
+      this.dialogChangeReason = false
+      await this.performSave({ rethrow: false })
+    },
+    async performSave({ rethrow = false, overwrite = false } = {}) {
       this.showProgressDialog('saving')
       this.isSaving = true
 
@@ -285,7 +348,83 @@ export default {
       }, 30000)
 
       try {
-        if (this.$store.get('editor/mode') === 'create') {
+        if (this.isPendingOnly) {
+          let resp = await this.$apollo.mutate({
+            mutation: gql`
+              mutation (
+                $content: String!
+                $description: String!
+                $editor: String!
+                $isPublished: Boolean!
+                $locale: String!
+                $path: String!
+                $publishEndDate: Date
+                $publishStartDate: Date
+                $scriptCss: String
+                $scriptJs: String
+                $tags: [String]!
+                $title: String!
+                $changeReason: String!
+              ) {
+                pageReviews {
+                  submit(
+                    content: $content
+                    description: $description
+                    editor: $editor
+                    isPublished: $isPublished
+                    locale: $locale
+                    path: $path
+                    publishEndDate: $publishEndDate
+                    publishStartDate: $publishStartDate
+                    scriptCss: $scriptCss
+                    scriptJs: $scriptJs
+                    tags: $tags
+                    title: $title
+                    changeReason: $changeReason
+                  ) {
+                    responseResult {
+                      succeeded
+                      errorCode
+                      slug
+                      message
+                    }
+                    review {
+                      id
+                      status
+                      gitBranch
+                    }
+                  }
+                }
+              }
+            `,
+            variables: {
+              content: this.$store.get('editor/content'),
+              description: this.$store.get('page/description'),
+              editor: this.$store.get('editor/editorKey'),
+              locale: this.$store.get('page/locale'),
+              isPublished: this.$store.get('page/isPublished'),
+              path: this.$store.get('page/path'),
+              publishEndDate: this.$store.get('page/publishEndDate') || '',
+              publishStartDate: this.$store.get('page/publishStartDate') || '',
+              scriptCss: this.$store.get('page/scriptCss'),
+              scriptJs: this.$store.get('page/scriptJs'),
+              tags: this.$store.get('page/tags'),
+              title: this.$store.get('page/title'),
+              changeReason: _.trim(this.changeReasonText).substring(0, 500)
+            }
+          })
+          resp = _.get(resp, 'data.pageReviews.submit', {})
+          if (_.get(resp, 'responseResult.succeeded')) {
+            this.$store.commit('showNotification', {
+              message: 'Submitted for review. Changes will appear after approval.',
+              style: 'success',
+              icon: 'check'
+            })
+            this.exitConfirmed = true
+          } else {
+            throw new Error(_.get(resp, 'responseResult.message'))
+          }
+        } else if (this.$store.get('editor/mode') === 'create') {
           // --------------------------------------------
           // -> CREATE PAGE
           // --------------------------------------------
@@ -497,11 +636,16 @@ export default {
       this.hideProgressDialog()
     },
     async saveAndClose() {
+      if (this.isPendingOnly) {
+        this.pendingSaveClose = true
+        this.dialogChangeReason = true
+        return
+      }
       try {
         if (this.$store.get('editor/mode') === 'create') {
-          await this.save()
+          await this.performSave()
         } else {
-          await this.save({ rethrow: true })
+          await this.performSave({ rethrow: true })
           await this.exit()
         }
       } catch (err) {
@@ -572,7 +716,7 @@ export default {
       },
       update: (data) => _.cloneDeep(data.pages.checkConflicts),
       skip () {
-        return this.mode === 'create' || this.isSaving || !this.isDirty
+        return this.mode === 'create' || this.isSaving || !this.isDirty || this.isPendingOnly
       }
     }
   }

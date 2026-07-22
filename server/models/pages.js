@@ -255,11 +255,12 @@ module.exports = class Page extends Model {
     }
 
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
+    const createPerm = opts.fromReviewApproval ? ['approve:pages'] : ['write:pages']
+    if (!WIKI.auth.checkAccess(opts.user, createPerm, {
       locale: opts.locale,
       path: opts.path
     })) {
-      throw new WIKI.Error.PageDeleteForbidden()
+      throw new WIKI.Error.PageCreateForbidden()
     }
 
     // -> Check for duplicate
@@ -296,10 +297,11 @@ module.exports = class Page extends Model {
     }
 
     // -> Create page
+    const attributedAuthorId = opts.authorId || opts.user.id
     await WIKI.models.pages.query().insert({
-      authorId: opts.user.id,
+      authorId: attributedAuthorId,
       content: opts.content,
-      creatorId: opts.user.id,
+      creatorId: attributedAuthorId,
       contentType: _.get(_.find(WIKI.data.editors, ['key', opts.editor]), `contentType`, 'text'),
       description: opts.description,
       editorKey: opts.editor,
@@ -375,7 +377,8 @@ module.exports = class Page extends Model {
     }
 
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
+    const updatePerm = opts.fromReviewApproval ? ['approve:pages'] : ['write:pages']
+    if (!WIKI.auth.checkAccess(opts.user, updatePerm, {
       locale: ogPage.localeCode,
       path: ogPage.path
     })) {
@@ -424,7 +427,7 @@ module.exports = class Page extends Model {
 
     // -> Update page
     await WIKI.models.pages.query().patch({
-      authorId: opts.user.id,
+      authorId: opts.authorId || opts.user.id,
       content: opts.content,
       description: opts.description,
       isPublished: opts.isPublished === true || opts.isPublished === 1,

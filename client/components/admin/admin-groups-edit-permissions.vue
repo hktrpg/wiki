@@ -59,6 +59,20 @@ export default {
               disabled: false
             },
             {
+              permission: 'write:pages:pending',
+              hint: 'Can submit page creates / edits for review (cannot publish directly)',
+              warning: false,
+              restrictedForSystem: true,
+              disabled: false
+            },
+            {
+              permission: 'approve:pages',
+              hint: 'Can approve or reject pending page reviews',
+              warning: true,
+              restrictedForSystem: true,
+              disabled: false
+            },
+            {
               permission: 'manage:pages',
               hint: 'Can move existing pages as specified in the Page Rules',
               warning: false,

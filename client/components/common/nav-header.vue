@@ -140,7 +140,7 @@
                 v-list-item.pl-4(@click='pageView', v-if='mode !== `view`')
                   v-list-item-avatar(size='24', tile): v-icon(color='indigo') mdi-file-document-outline
                   v-list-item-title.body-2 {{$t('common:header.view')}}
-                v-list-item.pl-4(@click='pageEdit', v-if='mode !== `edit` && hasWritePagesPermission')
+                v-list-item.pl-4(@click='pageEdit', v-if='mode !== `edit` && (hasWritePagesPermission || hasPendingPagesPermission)')
                   v-list-item-avatar(size='24', tile): v-icon(color='indigo') mdi-file-document-edit-outline
                   v-list-item-title.body-2 {{$t('common:header.edit')}}
                 v-list-item.pl-4(@click='pageHistory', v-if='mode !== `history` && hasReadHistoryPermission')
@@ -326,19 +326,20 @@ export default {
       }
     },
     isAdmin () {
-      return _.intersection(this.permissions, ['manage:system', 'write:users', 'manage:users', 'write:groups', 'manage:groups', 'manage:navigation', 'manage:theme', 'manage:api']).length > 0
+      return _.intersection(this.permissions, ['manage:system', 'write:users', 'manage:users', 'write:groups', 'manage:groups', 'manage:navigation', 'manage:theme', 'manage:api', 'approve:pages']).length > 0
     },
     hasNewPagePermission () {
-      return this.hasAdminPermission || _.intersection(this.permissions, ['write:pages']).length > 0
+      return this.hasAdminPermission || _.intersection(this.permissions, ['write:pages', 'write:pages:pending']).length > 0
     },
     hasAdminPermission: get('page/effectivePermissions@system.manage'),
     hasWritePagesPermission: get('page/effectivePermissions@pages.write'),
+    hasPendingPagesPermission: get('page/effectivePermissions@pages.pending'),
     hasManagePagesPermission: get('page/effectivePermissions@pages.manage'),
     hasDeletePagesPermission: get('page/effectivePermissions@pages.delete'),
     hasReadSourcePermission: get('page/effectivePermissions@source.read'),
     hasReadHistoryPermission: get('page/effectivePermissions@history.read'),
     hasAnyPagePermissions () {
-      return this.hasAdminPermission || this.hasWritePagesPermission || this.hasManagePagesPermission ||
+      return this.hasAdminPermission || this.hasWritePagesPermission || this.hasPendingPagesPermission || this.hasManagePagesPermission ||
         this.hasDeletePagesPermission || this.hasReadSourcePermission || this.hasReadHistoryPermission
     }
   },

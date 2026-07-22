@@ -45,7 +45,8 @@ router.get(['/a', '/a/*'], (req, res, next) => {
     'manage:groups',
     'manage:navigation',
     'manage:theme',
-    'manage:api'
+    'manage:api',
+    'approve:pages'
   ])) {
     _.set(res.locals, 'pageMeta.title', 'Unauthorized')
     return res.status(403).render('unauthorized', { action: 'view' })
@@ -140,7 +141,7 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
 
   if (page) {
     // -> EDIT MODE
-    if (!(effectivePermissions.pages.write || effectivePermissions.pages.manage)) {
+    if (!(effectivePermissions.pages.write || effectivePermissions.pages.manage || effectivePermissions.pages.pending)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
       return res.status(403).render('unauthorized', { action: 'edit' })
     }
@@ -157,6 +158,28 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
       page.extra.css = new CleanCSS({ format: 'beautify' }).minify(page.extra.css).styles
     }
 
+    // -> Resume own pending review content if present
+    if (effectivePermissions.pages.pending && !effectivePermissions.pages.write) {
+      const pending = await WIKI.models.pageReviews.getOwnPending({
+        locale: pageArgs.locale,
+        path: pageArgs.path,
+        userId: req.user.id
+      })
+      if (pending) {
+        page.content = pending.content
+        page.title = pending.title
+        page.description = pending.description
+        page.tags = pending.tags || page.tags
+        page.editorKey = pending.editorKey || page.editorKey
+        page.pendingReviewId = pending.id
+        page.changeReason = pending.changeReason
+        page.extra = {
+          css: pending.scriptCss || '',
+          js: pending.scriptJs || ''
+        }
+      }
+    }
+
     _.set(res.locals, 'pageMeta.title', `Edit ${page.title}`)
     _.set(res.locals, 'pageMeta.description', page.description)
     page.mode = 'update'
@@ -164,7 +187,7 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
     page.content = Buffer.from(page.content).toString('base64')
   } else {
     // -> CREATE MODE
-    if (!effectivePermissions.pages.write) {
+    if (!(effectivePermissions.pages.write || effectivePermissions.pages.pending)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
       return res.status(403).render('unauthorized', { action: 'create' })
     }
@@ -182,6 +205,31 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
       extra: {
         css: '',
         js: ''
+      },
+      pendingReviewId: null,
+      changeReason: ''
+    }
+
+    // -> Resume own pending create if present
+    if (effectivePermissions.pages.pending && !effectivePermissions.pages.write) {
+      const pending = await WIKI.models.pageReviews.getOwnPending({
+        locale: pageArgs.locale,
+        path: pageArgs.path,
+        userId: req.user.id
+      })
+      if (pending) {
+        page.content = Buffer.from(pending.content).toString('base64')
+        page.title = pending.title
+        page.description = pending.description
+        page.tags = pending.tags || []
+        page.editorKey = pending.editorKey
+        page.pendingReviewId = pending.id
+        page.changeReason = pending.changeReason
+        page.extra = {
+          css: pending.scriptCss || '',
+          js: pending.scriptJs || ''
+        }
+        page.isPublished = (pending.isPublished === true || pending.isPublished === 1) ? 'true' : 'false'
       }
     }
 
@@ -563,7 +611,7 @@ router.get('/*', async (req, res, next) => {
         res.render('welcome', { locale: pageArgs.locale })
       } else {
         _.set(res.locals, 'pageMeta.title', 'Page Not Found')
-        if (effectivePermissions.pages.write) {
+        if (effectivePermissions.pages.write || effectivePermissions.pages.pending) {
           res.status(404).render('new', { path: pageArgs.path, locale: pageArgs.locale })
         } else {
           res.status(404).render('notfound', { action: 'view' })

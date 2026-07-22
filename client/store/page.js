@@ -31,7 +31,10 @@ const state = {
       read: false
     },
     pages: {
+      read: false,
       write: false,
+      pending: false,
+      approve: false,
       manage: false,
       delete: false,
       script: false,

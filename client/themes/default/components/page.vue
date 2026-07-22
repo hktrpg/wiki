@@ -247,7 +247,7 @@
                       v-model='pageEditFab'
                       @click='pageEdit'
                       v-on='onEditActivator'
-                      :disabled='!hasWritePagesPermission'
+                      :disabled='!canEditPage'
                       :aria-label='$t(`common:page.editPage`)'
                       )
                       v-icon mdi-pencil
@@ -566,12 +566,16 @@ export default {
     tocPosition: get('site/tocPosition'),
     hasAdminPermission: get('page/effectivePermissions@system.manage'),
     hasWritePagesPermission: get('page/effectivePermissions@pages.write'),
+    hasPendingPagesPermission: get('page/effectivePermissions@pages.pending'),
     hasManagePagesPermission: get('page/effectivePermissions@pages.manage'),
     hasDeletePagesPermission: get('page/effectivePermissions@pages.delete'),
     hasReadSourcePermission: get('page/effectivePermissions@source.read'),
     hasReadHistoryPermission: get('page/effectivePermissions@history.read'),
+    canEditPage () {
+      return this.hasWritePagesPermission || this.hasPendingPagesPermission
+    },
     hasAnyPagePermissions () {
-      return this.hasAdminPermission || this.hasWritePagesPermission || this.hasManagePagesPermission ||
+      return this.hasAdminPermission || this.hasWritePagesPermission || this.hasPendingPagesPermission || this.hasManagePagesPermission ||
         this.hasDeletePagesPermission || this.hasReadSourcePermission || this.hasReadHistoryPermission
     },
     printView: sync('site/printView'),

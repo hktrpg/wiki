@@ -22,5 +22,7 @@ block body
       init-editor=page.editorKey
       init-content=page.content
       checkout-date=page.updatedAt
+      change-reason=page.changeReason || ''
+      :pending-review-id=page.pendingReviewId || 0
       effective-permissions=Buffer.from(JSON.stringify(effectivePermissions)).toString('base64')
       )
