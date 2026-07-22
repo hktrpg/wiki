@@ -100,7 +100,7 @@
           v-card-actions
             v-spacer
             v-btn(text, @click='dialogSaveSuccess = false') Stay in editor
-            v-btn(color='primary', depressed, @click='exitToPageView') View page
+            v-btn(color='primary', depressed, @click='exitToPageView') {{ saveSuccessViewLabel }}
 
     loader(v-model='dialogProgress', :title='$t(`editor:save.processing`)', :subtitle='$t(`editor:save.pleaseWait`)')
     notify
@@ -115,6 +115,7 @@ import { Base64 } from 'js-base64'
 import { StatusIndicator } from 'vue-status-indicator'
 
 import editorStore from '../store/editor'
+import guestIdentity from '../helpers/guestIdentity'
 
 /* global WIKI */
 
@@ -225,6 +226,7 @@ export default {
       dialogSaveSuccess: false,
       saveSuccessTitle: '',
       saveSuccessMessage: '',
+      saveSuccessViewLabel: 'View page',
       pendingSaveClose: false,
       changeReasonText: '',
       guestNameText: '',
@@ -316,6 +318,12 @@ export default {
     this.checkoutDateActive = this.checkoutDate
     this.changeReasonText = this.changeReason || ''
 
+    if (this.isGuestSubmitter) {
+      const identity = guestIdentity.read()
+      this.guestNameText = identity.name || ''
+      this.guestEmailText = identity.email || ''
+    }
+
     if (this.effectivePermissions) {
       this.$store.set('page/effectivePermissions', JSON.parse(Buffer.from(this.effectivePermissions, 'base64').toString()))
     }
@@ -395,6 +403,12 @@ export default {
           icon: 'warning'
         })
         return
+      }
+      if (this.isGuestSubmitter) {
+        guestIdentity.write({
+          name: this.guestNameText,
+          email: this.guestEmailText
+        })
       }
       this.dialogChangeReason = false
       await this.performSave({ rethrow: false })
@@ -489,6 +503,7 @@ export default {
             this.exitConfirmed = true
             this.saveSuccessTitle = 'Submitted for review'
             this.saveSuccessMessage = 'Changes will appear after approval.'
+            this.saveSuccessViewLabel = 'View awaiting page'
             this.dialogSaveSuccess = true
             this.pendingSaveClose = false
           } else {
@@ -576,6 +591,7 @@ export default {
             this.exitConfirmed = true
             this.saveSuccessTitle = 'Page created successfully'
             this.saveSuccessMessage = this.$t('editor:save.createSuccess')
+            this.saveSuccessViewLabel = 'View page'
             this.dialogSaveSuccess = true
           } else {
             throw new Error(_.get(resp, 'responseResult.message'))
@@ -686,6 +702,7 @@ export default {
             } else {
               this.saveSuccessTitle = 'Page updated successfully'
               this.saveSuccessMessage = this.$t('editor:save.updateSuccess')
+              this.saveSuccessViewLabel = 'View page'
               this.dialogSaveSuccess = true
             }
           } else {

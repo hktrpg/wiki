@@ -966,6 +966,48 @@ module.exports = class Page extends Model {
   }
 
   /**
+   * Render page-like content to HTML in-process (no DB write).
+   * Used for pending review previews.
+   */
+  static async renderContentToHtml(pageLike) {
+    const content = _.toString(pageLike.content || '')
+    if (!content) {
+      return ''
+    }
+
+    await WIKI.models.renderers.fetchDefinitions()
+    const contentType = pageLike.contentType || 'html'
+    const pipeline = await WIKI.models.renderers.getRenderingPipeline(contentType)
+    if (!pipeline || pipeline.length < 1) {
+      return content
+    }
+
+    const page = {
+      id: 0,
+      path: pageLike.path || '',
+      localeCode: pageLike.localeCode || pageLike.locale || 'en',
+      title: pageLike.title || '',
+      description: pageLike.description || '',
+      content,
+      contentType,
+      editorKey: pageLike.editorKey || pageLike.editor || '',
+      extra: pageLike.extra || {}
+    }
+
+    let output = content
+    for (let core of pipeline) {
+      const renderer = require(`../modules/rendering/${_.kebabCase(core.key)}/renderer.js`)
+      output = await renderer.render.call({
+        config: core.config,
+        children: core.children,
+        page,
+        input: output
+      })
+    }
+    return output
+  }
+
+  /**
    * Fetch an Existing Page from Cache if possible, from DB otherwise and save render to Cache
    *
    * @param {Object} opts Page Properties

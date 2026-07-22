@@ -612,6 +612,51 @@ router.get('/*', async (req, res, next) => {
         _.set(res.locals, 'pageMeta.title', 'Welcome')
         res.render('welcome', { locale: pageArgs.locale })
       } else {
+        // -> Pending new-page preview for author / approver
+        const pendingReview = await WIKI.models.pageReviews.getPendingByPath({
+          locale: pageArgs.locale,
+          path: pageArgs.path
+        })
+        if (pendingReview) {
+          const isAuthor = pendingReview.authorId === req.user.id
+          const canApprove = WIKI.auth.checkAccess(req.user, ['approve:pages'], pageArgs) ||
+            WIKI.auth.checkAccess(req.user, ['manage:system'])
+          if (isAuthor || canApprove) {
+            const authorName = pendingReview.guestName || _.get(pendingReview, 'author.name', 'Unknown')
+            const authorEmail = pendingReview.guestEmail || _.get(pendingReview, 'author.email', '')
+            let renderHtml = ''
+            try {
+              renderHtml = await WIKI.models.pages.renderContentToHtml(pendingReview)
+            } catch (err) {
+              WIKI.logger.warn('(PAGE-REVIEW) Failed to render pending preview:')
+              WIKI.logger.warn(err)
+              renderHtml = pendingReview.content || ''
+            }
+            _.set(res.locals, 'pageMeta.title', pendingReview.title || 'Pending Review')
+            return res.render('pending-page', {
+              review: {
+                id: pendingReview.id,
+                title: pendingReview.title,
+                description: pendingReview.description || '',
+                path: pendingReview.path,
+                locale: pendingReview.localeCode,
+                changeReason: pendingReview.changeReason,
+                content: pendingReview.content,
+                render: renderHtml,
+                status: pendingReview.status,
+                authorName,
+                authorEmail,
+                authorIp: pendingReview.authorIp || '',
+                createdAt: pendingReview.createdAt,
+                updatedAt: pendingReview.updatedAt
+              },
+              isAuthor,
+              canApprove,
+              effectivePermissions
+            })
+          }
+        }
+
         _.set(res.locals, 'pageMeta.title', 'Page Not Found')
         if (effectivePermissions.pages.write || effectivePermissions.pages.pending) {
           res.status(404).render('new', { path: pageArgs.path, locale: pageArgs.locale })

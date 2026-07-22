@@ -491,6 +491,17 @@ module.exports = class PageReview extends Model {
       .first()
   }
 
+  /**
+   * Get any pending review for a path (for pending preview page)
+   */
+  static async getPendingByPath({ locale, path }) {
+    const pendingKey = this.buildPendingKey(locale, this.normalizePath(path))
+    return WIKI.models.pageReviews.query()
+      .where({ pendingKey, status: 'pending' })
+      .withGraphFetched('author')
+      .first()
+  }
+
   static getGitTarget() {
     return _.find(WIKI.models.storage.targets, t => t.key === 'git' && t.isEnabled !== false && t.fn)
   }

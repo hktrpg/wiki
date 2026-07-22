@@ -141,16 +141,18 @@ import gql from 'graphql-tag'
 import { get } from 'vuex-pathify'
 import validate from 'validate.js'
 import _ from 'lodash'
+import guestIdentity from '../helpers/guestIdentity'
 
 export default {
   data () {
+    const identity = typeof window !== 'undefined' ? guestIdentity.read() : { name: '', email: '' }
     return {
       newcomment: '',
       isLoading: true,
       hasLoadedOnce: false,
       comments: [],
-      guestName: '',
-      guestEmail: '',
+      guestName: identity.name || '',
+      guestEmail: identity.email || '',
       commentToDelete: {},
       commentEditId: 0,
       commentEditContent: null,
@@ -322,6 +324,12 @@ export default {
         })
 
         if (_.get(resp, 'data.comments.create.responseResult.succeeded', false)) {
+          if (this.isGuestCommenter) {
+            guestIdentity.write({
+              name: this.guestName,
+              email: this.guestEmail
+            })
+          }
           this.$store.commit('showNotification', {
             style: 'success',
             message: this.$t('common:comments.postSuccess'),
