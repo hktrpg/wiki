@@ -1,5 +1,6 @@
 const Model = require('objection').Model
 const _ = require('lodash')
+const pageHelper = require('../helpers/page')
 
 /* global WIKI */
 
@@ -114,6 +115,14 @@ module.exports = class PageReview extends Model {
     const locale = opts.locale
     const pageArgs = { locale, path }
 
+    if (!locale || !_.isString(locale)) {
+      throw new WIKI.Error.PageIllegalPath()
+    }
+
+    if (pageHelper.isReservedPath(path)) {
+      throw new WIKI.Error.PageIllegalPath()
+    }
+
     if (!WIKI.auth.checkAccess(user, ['write:pages:pending'], pageArgs)) {
       throw new WIKI.Error.PageReviewForbidden()
     }
@@ -124,6 +133,11 @@ module.exports = class PageReview extends Model {
 
     if (!opts.content || _.trim(opts.content).length < 1) {
       throw new WIKI.Error.PageEmptyContent()
+    }
+
+    const editor = _.find(WIKI.data.editors, ['key', opts.editor])
+    if (!editor) {
+      throw new WIKI.Error.PageGenericError()
     }
 
     const changeReason = this.sanitizeText(opts.changeReason, 500)
@@ -141,9 +155,10 @@ module.exports = class PageReview extends Model {
       scriptJs = opts.scriptJs || ''
     }
 
-    const contentType = _.get(_.find(WIKI.data.editors, ['key', opts.editor]), 'contentType', 'text')
+    const contentType = _.get(editor, 'contentType', 'text')
     const tags = Array.isArray(opts.tags) ? opts.tags.filter(t => _.isString(t)).slice(0, 50) : []
     const pendingKey = this.buildPendingKey(locale, path)
+    const isPublished = opts.isPublished === true || opts.isPublished === 1 || opts.isPublished === 'true'
 
     const existingPage = await WIKI.models.pages.query()
       .select('id')
@@ -170,7 +185,7 @@ module.exports = class PageReview extends Model {
       tags,
       scriptCss,
       scriptJs,
-      isPublished: opts.isPublished !== false,
+      isPublished,
       publishStartDate: opts.publishStartDate || '',
       publishEndDate: opts.publishEndDate || '',
       changeReason,
@@ -183,18 +198,25 @@ module.exports = class PageReview extends Model {
     }
 
     let review
-    if (existingPending) {
-      // Delete old draft branch before replacing
-      if (existingPending.gitBranch) {
-        await this.safeDeleteGitBranch(existingPending.gitBranch)
+    try {
+      if (existingPending) {
+        // Delete old draft branch before replacing
+        if (existingPending.gitBranch) {
+          await this.safeDeleteGitBranch(existingPending.gitBranch)
+        }
+        await WIKI.models.pageReviews.query().findById(existingPending.id).patch({
+          ...payload,
+          gitBranch: null
+        })
+        review = await WIKI.models.pageReviews.query().findById(existingPending.id)
+      } else {
+        review = await WIKI.models.pageReviews.query().insertAndFetch(payload)
       }
-      await WIKI.models.pageReviews.query().findById(existingPending.id).patch({
-        ...payload,
-        gitBranch: null
-      })
-      review = await WIKI.models.pageReviews.query().findById(existingPending.id)
-    } else {
-      review = await WIKI.models.pageReviews.query().insertAndFetch(payload)
+    } catch (err) {
+      if (err.code === 'SQLITE_CONSTRAINT' || err.code === '23505' || /unique/i.test(err.message || '')) {
+        throw new WIKI.Error.PageReviewConflict()
+      }
+      throw err
     }
 
     // Best-effort git draft
@@ -269,7 +291,7 @@ module.exports = class PageReview extends Model {
       throw new WIKI.Error.PageReviewForbidden()
     }
 
-    const isSystem = _.includes(user.permissions || [], 'manage:system')
+    const isSystem = WIKI.auth.checkAccess(user, ['manage:system'])
     if (review.authorId === user.id && !isSystem) {
       throw new WIKI.Error.PageReviewSelfApprovalDenied()
     }
@@ -298,11 +320,17 @@ module.exports = class PageReview extends Model {
       authorId: author.id
     }
 
+    // Always resolve the live page by path — pageId may be stale/null
+    const livePage = await WIKI.models.pages.query()
+      .select('id')
+      .where({ localeCode: review.localeCode, path: review.path })
+      .first()
+
     let page
-    if (review.pageId) {
+    if (livePage) {
       page = await WIKI.models.pages.updatePage({
         ...pageOpts,
-        id: review.pageId
+        id: livePage.id
       })
     } else {
       page = await WIKI.models.pages.createPage(pageOpts)
@@ -344,7 +372,7 @@ module.exports = class PageReview extends Model {
       throw new WIKI.Error.PageReviewForbidden()
     }
 
-    const isSystem = _.includes(user.permissions || [], 'manage:system')
+    const isSystem = WIKI.auth.checkAccess(user, ['manage:system'])
     if (review.authorId === user.id && !isSystem) {
       throw new WIKI.Error.PageReviewSelfApprovalDenied()
     }

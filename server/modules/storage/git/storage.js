@@ -571,13 +571,14 @@ module.exports = {
       await fs.outputFile(filePath, pageObj.injectMetadata(), 'utf8')
 
       const gitFilePath = `./${fileName}`
-      if ((await this.git.checkIgnore(gitFilePath)).length === 0) {
-        await this.git.add(gitFilePath)
-        const message = _.trim(_.toString(pageLike.message || `docs: review ${pageLike.path}`)).substring(0, 500)
-        await this.git.commit(message, fileName, {
-          '--author': `"${pageLike.authorName} <${pageLike.authorEmail}>"`
-        })
+      if ((await this.git.checkIgnore(gitFilePath)).length !== 0) {
+        throw new Error(`Review draft file is gitignored: ${fileName}`)
       }
+      await this.git.add(gitFilePath)
+      const message = _.trim(_.toString(pageLike.message || `docs: review ${pageLike.path}`)).substring(0, 500)
+      await this.git.commit(message, fileName, {
+        '--author': `"${pageLike.authorName} <${pageLike.authorEmail}>"`
+      })
 
       await this.git.push('origin', draftBranch, ['--signed=if-asked'])
       WIKI.logger.info(`(STORAGE/GIT) Review draft pushed to ${draftBranch}`)
