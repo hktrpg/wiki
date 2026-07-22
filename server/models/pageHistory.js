@@ -162,7 +162,7 @@ module.exports = class PageHistory extends Model {
   /**
    * Get History Trail of a Page
    */
-  static async getHistory({ pageId, offsetPage = 0, offsetSize = 100 }) {
+  static async getHistory({ pageId, offsetPage = 0, offsetSize = 100, revealPii = false }) {
     const history = await WIKI.models.pageHistory.query()
       .column([
         'pageHistory.id',
@@ -230,8 +230,8 @@ module.exports = class PageHistory extends Model {
           versionId: ph.id,
           authorId: ph.authorId,
           authorName: ph.guestName || ph.authorName,
-          authorEmail: ph.guestEmail || null,
-          authorIP: ph.authorIp || null,
+          authorEmail: revealPii ? (ph.guestEmail || null) : null,
+          authorIP: revealPii ? (ph.authorIp || null) : null,
           actionType,
           valueBefore,
           valueAfter,

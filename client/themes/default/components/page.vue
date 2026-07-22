@@ -325,6 +325,23 @@
                     span {{$t('common:header.delete')}}
               span {{$t('common:page.editPage')}}
             v-alert.mb-5(
+              v-if='pendingPreviewData'
+              color='orange'
+              outlined
+              icon='mdi-file-clock-outline'
+              dense
+              )
+              .d-flex.align-center.flex-wrap
+                .caption.mr-3 {{ pendingPreviewBannerText }}
+                v-btn.ml-auto(
+                  :href='pendingPreviewHref'
+                  small
+                  depressed
+                  color='orange darken-2'
+                  dark
+                  )
+                  span.text-none View proposal
+            v-alert.mb-5(
               v-if='canSeePendingReviewsReminder && pendingReviewsCount > 0'
               color='orange'
               outlined
@@ -509,6 +526,10 @@ export default {
     filename: {
       type: String,
       default: ''
+    },
+    pendingPreview: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -519,6 +540,7 @@ export default {
       upBtnShown: false,
       pageEditFab: false,
       pendingReviewsCount: 0,
+      pendingPreviewData: null,
       scrollOpts: {
         duration: 1500,
         offset: 0,
@@ -601,6 +623,17 @@ export default {
     canSeePendingReviewsReminder () {
       return this.hasApprovePagesPermission || this.hasAdminPermission
     },
+    pendingPreviewBannerText () {
+      if (!this.pendingPreviewData) {
+        return ''
+      }
+      return this.pendingPreviewData.isAuthor
+        ? 'Your proposed changes are awaiting approval.'
+        : 'This page has proposed changes awaiting approval.'
+    },
+    pendingPreviewHref () {
+      return `/${this.locale}/${this.path}?view=pending`
+    },
     printView: sync('site/printView'),
     editMenuExternalUrl () {
       if (this.editShortcutsObj.editMenuBar && this.editShortcutsObj.editMenuExternalBtn) {
@@ -640,6 +673,13 @@ export default {
     this.$store.set('page/title', this.title)
     this.$store.set('page/editor', this.editor)
     this.$store.set('page/updatedAt', this.updatedAt)
+    if (this.pendingPreview) {
+      try {
+        this.pendingPreviewData = JSON.parse(Buffer.from(this.pendingPreview, 'base64').toString())
+      } catch (err) {
+        this.pendingPreviewData = null
+      }
+    }
     if (this.effectivePermissions) {
       this.$store.set('page/effectivePermissions', JSON.parse(Buffer.from(this.effectivePermissions, 'base64').toString()))
     }

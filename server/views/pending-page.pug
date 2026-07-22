@@ -18,6 +18,7 @@ block body
       updated-at=review.updatedAt
       :is-author=isAuthor.toString()
       :can-approve=canApprove.toString()
+      :has-live-page=(!!hasLivePage).toString()
       effective-permissions=Buffer.from(JSON.stringify(effectivePermissions)).toString('base64')
       )
       template(slot='contents')

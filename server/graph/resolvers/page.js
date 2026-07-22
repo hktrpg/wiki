@@ -20,10 +20,16 @@ module.exports = {
         path: page.path,
         locale: page.localeCode
       })) {
+        const revealPii = WIKI.auth.checkAccess(context.req.user, ['manage:system']) ||
+          WIKI.auth.checkAccess(context.req.user, ['approve:pages'], {
+            path: page.path,
+            locale: page.localeCode
+          })
         return WIKI.models.pageHistory.getHistory({
           pageId: args.id,
           offsetPage: args.offsetPage || 0,
-          offsetSize: args.offsetSize || 100
+          offsetSize: args.offsetSize || 100,
+          revealPii
         })
       } else {
         throw new WIKI.Error.PageHistoryForbidden()

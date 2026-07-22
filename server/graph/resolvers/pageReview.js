@@ -3,6 +3,10 @@ const _ = require('lodash')
 
 /* global WIKI */
 
+function guestEmailFromReq (req) {
+  return _.toLower(_.trim(_.get(req, 'cookies.wikiGuestEmail', '') || ''))
+}
+
 function mapReview (review, liveContent = null, user = null) {
   if (!review) { return null }
   const ipHelper = require('../../helpers/ip')
@@ -32,11 +36,11 @@ function mapReview (review, liveContent = null, user = null) {
     gitBranch: review.gitBranch,
     authorId: review.authorId,
     authorName: review.guestName || _.get(review, 'author.name', null),
-    authorEmail: review.guestEmail || _.get(review, 'author.email', null),
+    authorEmail: revealFull ? (review.guestEmail || _.get(review, 'author.email', null)) : null,
     authorIP: revealFull ? ipHelper.normalizeIp(rawIp) : null,
     authorIPMasked: revealFull ? ipHelper.maskIp(rawIp) : null,
     guestName: review.guestName || '',
-    guestEmail: review.guestEmail || '',
+    guestEmail: revealFull ? (review.guestEmail || '') : '',
     reviewerId: review.reviewerId,
     reviewerName: _.get(review, 'reviewer.name', null),
     reviewerComment: review.reviewerComment,
@@ -72,7 +76,10 @@ module.exports = {
       return WIKI.models.pageReviews.countPendingForUser(context.req.user)
     },
     async single(obj, args, context) {
-      const review = await WIKI.models.pageReviews.getAccessible(args.id, context.req.user)
+      const review = await WIKI.models.pageReviews.getAccessible(args.id, context.req.user, {
+        ip: context.req.ip,
+        guestEmail: guestEmailFromReq(context.req)
+      })
       let liveContent = null
       if (review.pageId) {
         const page = await WIKI.models.pages.query().select('content').findById(review.pageId)
@@ -84,7 +91,9 @@ module.exports = {
       const review = await WIKI.models.pageReviews.getOwnPending({
         locale: args.locale,
         path: args.path,
-        userId: context.req.user.id
+        userId: context.req.user.id,
+        ip: context.req.ip,
+        guestEmail: guestEmailFromReq(context.req)
       })
       return mapReview(review, null, context.req.user)
     }
@@ -110,7 +119,9 @@ module.exports = {
         const review = await WIKI.models.pageReviews.approve({
           id: args.id,
           comment: args.comment,
-          user: context.req.user
+          user: context.req.user,
+          ip: context.req.ip,
+          guestEmail: guestEmailFromReq(context.req)
         })
         return {
           responseResult: graphHelper.generateSuccess('Page review approved successfully'),
@@ -125,7 +136,9 @@ module.exports = {
         const review = await WIKI.models.pageReviews.reject({
           id: args.id,
           comment: args.comment,
-          user: context.req.user
+          user: context.req.user,
+          ip: context.req.ip,
+          guestEmail: guestEmailFromReq(context.req)
         })
         return {
           responseResult: graphHelper.generateSuccess('Page review rejected successfully'),
@@ -139,7 +152,9 @@ module.exports = {
       try {
         const review = await WIKI.models.pageReviews.withdraw({
           id: args.id,
-          user: context.req.user
+          user: context.req.user,
+          ip: context.req.ip,
+          guestEmail: guestEmailFromReq(context.req)
         })
         return {
           responseResult: graphHelper.generateSuccess('Page review withdrawn successfully'),

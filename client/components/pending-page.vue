@@ -10,9 +10,19 @@
         icon='mdi-file-clock-outline'
         )
         .d-flex.align-center.flex-wrap
-          .body-2.mr-3 This page is awaiting approval and is not published yet.
+          .body-2.mr-3 {{ bannerMessage }}
           v-chip.ml-2(x-small, outlined) {{ status }}
           v-spacer
+          v-btn.mr-2(
+            v-if='hasLivePageBool'
+            :href='`/${locale}/${path}`'
+            small
+            depressed
+            color='white'
+            light
+            )
+            v-icon(left, small) mdi-eye
+            span.text-none View live
           v-btn.mr-2(
             v-if='isAuthorBool'
             :href='`/e/${locale}/${path}`'
@@ -87,6 +97,7 @@ export default {
     updatedAt: { type: String, default: '' },
     isAuthor: { type: [Boolean, String], default: false },
     canApprove: { type: [Boolean, String], default: false },
+    hasLivePage: { type: [Boolean, String], default: false },
     effectivePermissions: { type: String, default: '' }
   },
   computed: {
@@ -95,6 +106,14 @@ export default {
     },
     canApproveBool () {
       return this.canApprove === true || this.canApprove === 'true'
+    },
+    hasLivePageBool () {
+      return this.hasLivePage === true || this.hasLivePage === 'true'
+    },
+    bannerMessage () {
+      return this.hasLivePageBool
+        ? 'Proposed changes awaiting approval (preview — not live yet).'
+        : 'This page is awaiting approval and is not published yet.'
     }
   },
   created () {

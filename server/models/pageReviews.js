@@ -113,6 +113,28 @@ module.exports = class PageReview extends Model {
   }
 
   /**
+   * Guest authors all share authorId = 2 — own by guestEmail + authorIp.
+   * Logged-in users own by authorId only.
+   */
+  static isSameAuthor(review, { user, ip, guestEmail } = {}) {
+    if (!review || !user) {
+      return false
+    }
+    if (user.id !== 2) {
+      return review.authorId === user.id
+    }
+    if (review.authorId !== 2) {
+      return false
+    }
+    const email = _.toLower(_.trim(guestEmail || ''))
+    const reviewEmail = _.toLower(_.trim(review.guestEmail || ''))
+    if (!email || !reviewEmail || email !== reviewEmail) {
+      return false
+    }
+    return ipHelper.normalizeIp(review.authorIp) === ipHelper.normalizeIp(ip)
+  }
+
+  /**
    * Submit or update a pending review
    */
   static async submit(opts) {
@@ -200,7 +222,11 @@ module.exports = class PageReview extends Model {
       .where({ pendingKey, status: 'pending' })
       .first()
 
-    if (existingPending && existingPending.authorId !== user.id) {
+    if (existingPending && !this.isSameAuthor(existingPending, {
+      user,
+      ip: opts.ip,
+      guestEmail
+    })) {
       throw new WIKI.Error.PageReviewConflict()
     }
 
@@ -306,7 +332,7 @@ module.exports = class PageReview extends Model {
   /**
    * Load a single review with access check
    */
-  static async getAccessible(id, user) {
+  static async getAccessible(id, user, { ip, guestEmail } = {}) {
     const review = await WIKI.models.pageReviews.query()
       .findById(id)
       .withGraphFetched('[author, reviewer]')
@@ -315,7 +341,7 @@ module.exports = class PageReview extends Model {
     }
 
     const pageArgs = { locale: review.localeCode, path: review.path }
-    const isAuthor = review.authorId === user.id
+    const isAuthor = this.isSameAuthor(review, { user, ip, guestEmail })
     const canApprove = WIKI.auth.checkAccess(user, ['approve:pages'], pageArgs)
 
     if (!isAuthor && !canApprove) {
@@ -344,13 +370,30 @@ module.exports = class PageReview extends Model {
     }
 
     const isSystem = WIKI.auth.checkAccess(user, ['manage:system'])
-    if (review.authorId === user.id && !isSystem) {
+    if (this.isSameAuthor(review, { user, ip: opts.ip, guestEmail: opts.guestEmail }) && !isSystem) {
       throw new WIKI.Error.PageReviewSelfApprovalDenied()
     }
 
     const author = await WIKI.models.users.query().findById(review.authorId)
     if (!author) {
       throw new WIKI.Error.UserNotFound()
+    }
+
+    const reviewerComment = this.sanitizeText(opts.comment, 2000) || null
+    const reviewedAt = new Date().toISOString()
+
+    // Claim first so concurrent approvers cannot both publish
+    const claimed = await WIKI.models.pageReviews.query()
+      .where({ id: review.id, status: 'pending' })
+      .patch({
+        status: 'approved',
+        pendingKey: null,
+        reviewerId: user.id,
+        reviewerComment,
+        reviewedAt
+      })
+    if (!claimed) {
+      throw new WIKI.Error.PageReviewInvalidState()
     }
 
     const pageOpts = {
@@ -375,35 +418,40 @@ module.exports = class PageReview extends Model {
       authorIp: review.authorIp || ''
     }
 
-    // Always resolve the live page by path — pageId may be stale/null
-    const livePage = await WIKI.models.pages.query()
-      .select('id')
-      .where({ localeCode: review.localeCode, path: review.path })
-      .first()
+    try {
+      // Always resolve the live page by path — pageId may be stale/null
+      const livePage = await WIKI.models.pages.query()
+        .select('id')
+        .where({ localeCode: review.localeCode, path: review.path })
+        .first()
 
-    let page
-    if (livePage) {
-      page = await WIKI.models.pages.updatePage({
-        ...pageOpts,
-        id: livePage.id
+      let page
+      if (livePage) {
+        page = await WIKI.models.pages.updatePage({
+          ...pageOpts,
+          id: livePage.id
+        })
+      } else {
+        page = await WIKI.models.pages.createPage(pageOpts)
+      }
+
+      await WIKI.models.pageReviews.query().findById(review.id).patch({
+        pageId: page.id
       })
-    } else {
-      page = await WIKI.models.pages.createPage(pageOpts)
-    }
 
-    const reviewerComment = this.sanitizeText(opts.comment, 2000) || null
-    await WIKI.models.pageReviews.query().findById(review.id).patch({
-      status: 'approved',
-      pendingKey: null,
-      pageId: page.id,
-      reviewerId: user.id,
-      reviewerComment,
-      reviewedAt: new Date().toISOString()
-    })
-
-    if (review.gitBranch) {
-      await this.safeDeleteGitBranch(review.gitBranch)
-      await WIKI.models.pageReviews.query().findById(review.id).patch({ gitBranch: null })
+      if (review.gitBranch) {
+        await this.safeDeleteGitBranch(review.gitBranch)
+        await WIKI.models.pageReviews.query().findById(review.id).patch({ gitBranch: null })
+      }
+    } catch (err) {
+      await WIKI.models.pageReviews.query().findById(review.id).patch({
+        status: 'pending',
+        pendingKey: this.buildPendingKey(review.localeCode, review.path),
+        reviewerId: null,
+        reviewerComment: null,
+        reviewedAt: null
+      })
+      throw err
     }
 
     return WIKI.models.pageReviews.query().findById(review.id).withGraphFetched('[author, reviewer]')
@@ -428,18 +476,23 @@ module.exports = class PageReview extends Model {
     }
 
     const isSystem = WIKI.auth.checkAccess(user, ['manage:system'])
-    if (review.authorId === user.id && !isSystem) {
+    if (this.isSameAuthor(review, { user, ip: opts.ip, guestEmail: opts.guestEmail }) && !isSystem) {
       throw new WIKI.Error.PageReviewSelfApprovalDenied()
     }
 
     const reviewerComment = this.sanitizeText(opts.comment, 2000) || null
-    await WIKI.models.pageReviews.query().findById(review.id).patch({
-      status: 'rejected',
-      pendingKey: null,
-      reviewerId: user.id,
-      reviewerComment,
-      reviewedAt: new Date().toISOString()
-    })
+    const claimed = await WIKI.models.pageReviews.query()
+      .where({ id: review.id, status: 'pending' })
+      .patch({
+        status: 'rejected',
+        pendingKey: null,
+        reviewerId: user.id,
+        reviewerComment,
+        reviewedAt: new Date().toISOString()
+      })
+    if (!claimed) {
+      throw new WIKI.Error.PageReviewInvalidState()
+    }
 
     if (review.gitBranch) {
       await this.safeDeleteGitBranch(review.gitBranch)
@@ -461,17 +514,26 @@ module.exports = class PageReview extends Model {
     if (review.status !== 'pending') {
       throw new WIKI.Error.PageReviewInvalidState()
     }
-    if (review.authorId !== user.id) {
+    if (!this.isSameAuthor(review, {
+      user,
+      ip: opts.ip,
+      guestEmail: opts.guestEmail
+    })) {
       throw new WIKI.Error.PageReviewForbidden()
     }
 
-    await WIKI.models.pageReviews.query().findById(review.id).patch({
-      status: 'rejected',
-      pendingKey: null,
-      reviewerId: user.id,
-      reviewerComment: 'Withdrawn by author',
-      reviewedAt: new Date().toISOString()
-    })
+    const claimed = await WIKI.models.pageReviews.query()
+      .where({ id: review.id, status: 'pending' })
+      .patch({
+        status: 'rejected',
+        pendingKey: null,
+        reviewerId: user.id,
+        reviewerComment: 'Withdrawn by author',
+        reviewedAt: new Date().toISOString()
+      })
+    if (!claimed) {
+      throw new WIKI.Error.PageReviewInvalidState()
+    }
 
     if (review.gitBranch) {
       await this.safeDeleteGitBranch(review.gitBranch)
@@ -484,11 +546,22 @@ module.exports = class PageReview extends Model {
   /**
    * Get pending review for a path owned by user (for editor resume)
    */
-  static async getOwnPending({ locale, path, userId }) {
+  static async getOwnPending({ locale, path, userId, ip, guestEmail }) {
     const pendingKey = this.buildPendingKey(locale, path)
-    return WIKI.models.pageReviews.query()
+    const pending = await WIKI.models.pageReviews.query()
       .where({ pendingKey, status: 'pending', authorId: userId })
       .first()
+    if (!pending) {
+      return null
+    }
+    if (userId === 2 && !this.isSameAuthor(pending, {
+      user: { id: 2 },
+      ip,
+      guestEmail
+    })) {
+      return null
+    }
+    return pending
   }
 
   /**

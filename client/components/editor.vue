@@ -772,8 +772,11 @@ export default {
       this.exitConfirmed = true
       const locale = this.$store.get('page/locale')
       const path = this.$store.get('page/path')
+      const awaiting = this.saveSuccessViewLabel === 'View awaiting page'
       _.delay(() => {
-        window.location.assign(`/${locale}/${path}`)
+        window.location.assign(awaiting
+          ? `/${locale}/${path}?view=pending`
+          : `/${locale}/${path}`)
       }, 500)
     },
     setCurrentSavedState () {
