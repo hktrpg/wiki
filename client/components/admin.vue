@@ -32,6 +32,13 @@
             v-list-item(to='/page-reviews', color='primary', v-if='hasPermission([`manage:system`, `approve:pages`])')
               v-list-item-avatar(size='24', tile): v-icon mdi-file-check-outline
               v-list-item-title Page Reviews
+              v-list-item-action(style='min-width:auto;')
+                v-chip(
+                  x-small
+                  :color='pendingReviewsCount > 0 ? `orange darken-2` : ($vuetify.theme.dark ? `grey darken-3-d4` : `grey lighten-5`)'
+                  :dark='pendingReviewsCount > 0'
+                )
+                  .caption(:class='pendingReviewsCount > 0 ? `` : `grey--text`') {{ pendingReviewsCount }}
             v-list-item(to='/tags', v-if='hasPermission([`manage:system`])')
               v-list-item-avatar(size='24', tile): v-icon mdi-tag-multiple
               v-list-item-title {{ $t('admin:tags.title') }}
@@ -133,6 +140,7 @@
 import _ from 'lodash'
 import VueRouter from 'vue-router'
 import { get, sync } from 'vuex-pathify'
+import gql from 'graphql-tag'
 
 import statsQuery from 'gql/admin/dashboard/dashboard-query-stats.gql'
 
@@ -187,6 +195,7 @@ export default {
   data() {
     return {
       adminDrawerShown: true,
+      pendingReviewsCount: 0,
       scrollStyle: {
         vuescroll: {},
         scrollPanel: {
@@ -240,6 +249,21 @@ export default {
       watchLoading (isLoading) {
         this.$store.commit(`loading${isLoading ? 'Start' : 'Stop'}`, 'admin-stats-refresh')
       }
+    },
+    pendingReviewsCount: {
+      query: gql`
+        {
+          pageReviews {
+            pendingCount
+          }
+        }
+      `,
+      fetchPolicy: 'network-only',
+      skip () {
+        return !this.hasPermission(['manage:system', 'approve:pages'])
+      },
+      update: (data) => _.get(data, 'pageReviews.pendingCount', 0),
+      pollInterval: 60000
     }
   }
 }

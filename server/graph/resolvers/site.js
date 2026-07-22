@@ -24,6 +24,10 @@ module.exports = {
         ...WIKI.config.editShortcuts,
         ...WIKI.config.features,
         ...WIKI.config.security,
+        guestCommentsPerMinute: _.get(WIKI.config.security, 'guestCommentsPerMinute', 5),
+        guestCommentsPerHour: _.get(WIKI.config.security, 'guestCommentsPerHour', 30),
+        guestPageWritesPerMinute: _.get(WIKI.config.security, 'guestPageWritesPerMinute', 3),
+        guestPageWritesPerHour: _.get(WIKI.config.security, 'guestPageWritesPerHour', 15),
         authAutoLogin: WIKI.config.auth.autoLogin,
         authEnforce2FA: WIKI.config.auth.enforce2FA,
         authHideLocal: WIKI.config.auth.hideLocal,
@@ -115,7 +119,11 @@ module.exports = {
           securityHSTS: _.get(args, 'securityHSTS', WIKI.config.security.securityHSTS),
           securityHSTSDuration: _.get(args, 'securityHSTSDuration', WIKI.config.security.securityHSTSDuration),
           securityCSP: _.get(args, 'securityCSP', WIKI.config.security.securityCSP),
-          securityCSPDirectives: _.get(args, 'securityCSPDirectives', WIKI.config.security.securityCSPDirectives)
+          securityCSPDirectives: _.get(args, 'securityCSPDirectives', WIKI.config.security.securityCSPDirectives),
+          guestCommentsPerMinute: _.toSafeInteger(_.get(args, 'guestCommentsPerMinute', _.get(WIKI.config.security, 'guestCommentsPerMinute', 5))),
+          guestCommentsPerHour: _.toSafeInteger(_.get(args, 'guestCommentsPerHour', _.get(WIKI.config.security, 'guestCommentsPerHour', 30))),
+          guestPageWritesPerMinute: _.toSafeInteger(_.get(args, 'guestPageWritesPerMinute', _.get(WIKI.config.security, 'guestPageWritesPerMinute', 3))),
+          guestPageWritesPerHour: _.toSafeInteger(_.get(args, 'guestPageWritesPerHour', _.get(WIKI.config.security, 'guestPageWritesPerHour', 15)))
         }
 
         WIKI.config.uploads = {

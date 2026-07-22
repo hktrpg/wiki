@@ -1,6 +1,9 @@
 const Model = require('objection').Model
 const _ = require('lodash')
+const validate = require('validate.js')
 const pageHelper = require('../helpers/page')
+const ipHelper = require('../helpers/ip')
+const guestRateLimit = require('../helpers/guestRateLimit')
 
 /* global WIKI */
 
@@ -33,6 +36,9 @@ module.exports = class PageReview extends Model {
         pendingKey: { type: ['string', 'null'] },
         gitBranch: { type: ['string', 'null'] },
         authorId: { type: 'integer' },
+        authorIp: { type: 'string' },
+        guestName: { type: 'string' },
+        guestEmail: { type: 'string' },
         reviewerId: { type: ['integer', 'null'] },
         reviewerComment: { type: ['string', 'null'] },
         createdAt: { type: 'string' },
@@ -115,6 +121,8 @@ module.exports = class PageReview extends Model {
     const locale = opts.locale
     const pageArgs = { locale, path }
 
+    guestRateLimit.consume({ user, ip: opts.ip, action: 'pageWrite' })
+
     if (!locale || !_.isString(locale)) {
       throw new WIKI.Error.PageIllegalPath()
     }
@@ -126,8 +134,8 @@ module.exports = class PageReview extends Model {
     if (!WIKI.auth.checkAccess(user, ['write:pages:pending'], pageArgs)) {
       throw new WIKI.Error.PageReviewForbidden()
     }
-    // Direct publishers should use create/update, not reviews
-    if (WIKI.auth.checkAccess(user, ['write:pages'], pageArgs) && !opts.forcePending) {
+    // Direct publishers should use create/update, not reviews (Guests always use reviews)
+    if (user.id !== 2 && WIKI.auth.checkAccess(user, ['write:pages'], pageArgs) && !opts.forcePending) {
       throw new WIKI.Error.PageReviewForbidden()
     }
 
@@ -143,6 +151,29 @@ module.exports = class PageReview extends Model {
     const changeReason = this.sanitizeText(opts.changeReason, 500)
     if (!changeReason || changeReason.length < 1) {
       throw new WIKI.Error.PageReviewInvalidReason()
+    }
+
+    let guestName = ''
+    let guestEmail = ''
+    if (user.id === 2) {
+      guestName = this.sanitizeText(opts.guestName, 255)
+      guestEmail = _.toLower(_.trim(opts.guestEmail || ''))
+      const validation = validate({
+        email: guestEmail,
+        name: guestName
+      }, {
+        email: {
+          email: true,
+          length: { maximum: 255 }
+        },
+        name: {
+          presence: { allowEmpty: false },
+          length: { minimum: 2, maximum: 255 }
+        }
+      }, { format: 'flat' })
+      if (validation && validation.length > 0) {
+        throw new WIKI.Error.InputInvalid(validation[0])
+      }
     }
 
     // Strip elevated script fields unless user also has those perms
@@ -192,6 +223,9 @@ module.exports = class PageReview extends Model {
       status: 'pending',
       pendingKey,
       authorId: user.id,
+      authorIp: ipHelper.normalizeIp(opts.ip),
+      guestName,
+      guestEmail,
       reviewerId: null,
       reviewerComment: null,
       reviewedAt: null
@@ -232,6 +266,24 @@ module.exports = class PageReview extends Model {
     }
 
     return review
+  }
+
+  /**
+   * Count pending reviews visible to the given approver
+   */
+  static async countPendingForUser(user) {
+    const pending = await WIKI.models.pageReviews.query()
+      .select('localeCode', 'path')
+      .where('status', 'pending')
+
+    if (WIKI.auth.checkAccess(user, ['manage:system'])) {
+      return pending.length
+    }
+
+    return pending.filter(r => WIKI.auth.checkAccess(user, ['approve:pages'], {
+      locale: r.localeCode,
+      path: r.path
+    })).length
   }
 
   /**
@@ -317,7 +369,10 @@ module.exports = class PageReview extends Model {
       title: review.title,
       user,
       fromReviewApproval: true,
-      authorId: author.id
+      authorId: author.id,
+      guestName: review.guestName || '',
+      guestEmail: review.guestEmail || '',
+      authorIp: review.authorIp || ''
     }
 
     // Always resolve the live page by path — pageId may be stale/null

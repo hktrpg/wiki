@@ -1,7 +1,24 @@
 const _ = require('lodash')
 const graphHelper = require('../../helpers/graph')
+const ipHelper = require('../../helpers/ip')
 
 /* global WIKI */
+
+function mapComment (c, user) {
+  const ip = c.ip || c.authorIP || ''
+  const revealFull = user && (
+    WIKI.auth.checkAccess(user, ['manage:system']) ||
+    WIKI.auth.checkAccess(user, ['manage:comments'])
+  )
+  // IP is privileged-only — never expose masked IP to the public / guests
+  return {
+    ...c,
+    authorName: c.name || c.authorName,
+    authorEmail: revealFull ? (c.email || c.authorEmail || null) : null,
+    authorIP: revealFull ? (ipHelper.normalizeIp(ip) || null) : null,
+    authorIPMasked: revealFull ? (ipHelper.maskIp(ip) || null) : null
+  }
+}
 
 module.exports = {
   Query: {
@@ -48,12 +65,7 @@ module.exports = {
       if (page) {
         if (WIKI.auth.checkAccess(context.req.user, ['read:comments'], { tags: page.tags, ...args })) {
           const comments = await WIKI.models.comments.query().where('pageId', page.id).orderBy('createdAt')
-          return comments.map(c => ({
-            ...c,
-            authorName: c.name,
-            authorEmail: c.email,
-            authorIP: c.ip
-          }))
+          return comments.map(c => mapComment(c, context.req.user))
         } else {
           throw new WIKI.Error.CommentViewForbidden()
         }
@@ -80,12 +92,7 @@ module.exports = {
           locale: page.localeCode,
           tags: page.tags
         })) {
-          return {
-            ...cm,
-            authorName: cm.name,
-            authorEmail: cm.email,
-            authorIP: cm.ip
-          }
+          return mapComment(cm, context.req.user)
         } else {
           throw new WIKI.Error.CommentViewForbidden()
         }
@@ -104,7 +111,7 @@ module.exports = {
         const cmId = await WIKI.models.comments.postNewComment({
           ...args,
           user: context.req.user,
-          ip: context.req.ip
+          ip: ipHelper.normalizeIp(context.req.ip)
         })
         return {
           responseResult: graphHelper.generateSuccess('New comment posted successfully'),
@@ -122,7 +129,7 @@ module.exports = {
         const cmRender = await WIKI.models.comments.updateComment({
           ...args,
           user: context.req.user,
-          ip: context.req.ip
+          ip: ipHelper.normalizeIp(context.req.ip)
         })
         return {
           responseResult: graphHelper.generateSuccess('Comment updated successfully'),
@@ -140,7 +147,7 @@ module.exports = {
         await WIKI.models.comments.deleteComment({
           id: args.id,
           user: context.req.user,
-          ip: context.req.ip
+          ip: ipHelper.normalizeIp(context.req.ip)
         })
         return {
           responseResult: graphHelper.generateSuccess('Comment deleted successfully')

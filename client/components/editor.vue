@@ -56,6 +56,23 @@
           v-card-title Submit for Review
           v-card-text
             .body-2.mb-3 Your changes will not be published until an approver reviews them.
+            v-text-field.mb-2(
+              v-if='isGuestSubmitter'
+              v-model='guestNameText'
+              label='Your name'
+              outlined
+              dense
+              :rules='[v => (!!v && v.trim().length >= 2) || `Name is required`]'
+            )
+            v-text-field.mb-2(
+              v-if='isGuestSubmitter'
+              v-model='guestEmailText'
+              label='Email address'
+              type='email'
+              outlined
+              dense
+              :rules='[v => (!!v && /.+@.+\..+/.test(v)) || `Valid email is required`]'
+            )
             v-textarea(
               v-model='changeReasonText'
               label='Change reason'
@@ -71,6 +88,19 @@
             v-spacer
             v-btn(text, @click='dialogChangeReason = false') Cancel
             v-btn(color='primary', depressed, @click='confirmPendingSave') Submit
+
+      v-dialog(v-model='dialogSaveSuccess', max-width='480', persistent)
+        v-card
+          v-card-title
+            v-icon.mr-2(color='success') mdi-check-circle
+            span {{ saveSuccessTitle }}
+          v-card-text
+            .body-1 {{ saveSuccessMessage }}
+            .body-2.grey--text.mt-2 You can return to the page view.
+          v-card-actions
+            v-spacer
+            v-btn(text, @click='dialogSaveSuccess = false') Stay in editor
+            v-btn(color='primary', depressed, @click='exitToPageView') View page
 
     loader(v-model='dialogProgress', :title='$t(`editor:save.processing`)', :subtitle='$t(`editor:save.pleaseWait`)')
     notify
@@ -192,8 +222,13 @@ export default {
       dialogEditorSelector: false,
       dialogUnsaved: false,
       dialogChangeReason: false,
+      dialogSaveSuccess: false,
+      saveSuccessTitle: '',
+      saveSuccessMessage: '',
       pendingSaveClose: false,
       changeReasonText: '',
+      guestNameText: '',
+      guestEmailText: '',
       exitConfirmed: false,
       initContentParsed: '',
       savedState: {
@@ -218,7 +253,14 @@ export default {
     currentStyling: get('page/scriptCss'),
     pagePerms: get('page/effectivePermissions@pages'),
     isPendingOnly () {
+      // Guests always submit for review (even if group also has write:pages)
+      if (this.isGuestSubmitter) {
+        return true
+      }
       return !!(this.pagePerms && this.pagePerms.pending && !this.pagePerms.write && !this.pagePerms.manage)
+    },
+    isGuestSubmitter () {
+      return !this.$store.get('user/authenticated') || this.$store.get('user/id') === 2
     },
     saveActionLabel () {
       if (this.isPendingOnly) {
@@ -328,6 +370,24 @@ export default {
       return this.performSave({ rethrow, overwrite })
     },
     async confirmPendingSave() {
+      if (this.isGuestSubmitter) {
+        if (!_.trim(this.guestNameText) || _.trim(this.guestNameText).length < 2) {
+          this.$store.commit('showNotification', {
+            message: 'Name is required',
+            style: 'error',
+            icon: 'warning'
+          })
+          return
+        }
+        if (!/.+@.+\..+/.test(_.trim(this.guestEmailText))) {
+          this.$store.commit('showNotification', {
+            message: 'Valid email is required',
+            style: 'error',
+            icon: 'warning'
+          })
+          return
+        }
+      }
       if (!_.trim(this.changeReasonText)) {
         this.$store.commit('showNotification', {
           message: 'Change reason is required',
@@ -365,6 +425,8 @@ export default {
                 $tags: [String]!
                 $title: String!
                 $changeReason: String!
+                $guestName: String
+                $guestEmail: String
               ) {
                 pageReviews {
                   submit(
@@ -381,6 +443,8 @@ export default {
                     tags: $tags
                     title: $title
                     changeReason: $changeReason
+                    guestName: $guestName
+                    guestEmail: $guestEmail
                   ) {
                     responseResult {
                       succeeded
@@ -410,7 +474,9 @@ export default {
               scriptJs: this.$store.get('page/scriptJs'),
               tags: this.$store.get('page/tags'),
               title: this.$store.get('page/title'),
-              changeReason: _.trim(this.changeReasonText).substring(0, 500)
+              changeReason: _.trim(this.changeReasonText).substring(0, 500),
+              guestName: this.isGuestSubmitter ? _.trim(this.guestNameText) : null,
+              guestEmail: this.isGuestSubmitter ? _.trim(this.guestEmailText) : null
             }
           })
           resp = _.get(resp, 'data.pageReviews.submit', {})
@@ -421,6 +487,10 @@ export default {
               icon: 'check'
             })
             this.exitConfirmed = true
+            this.saveSuccessTitle = 'Submitted for review'
+            this.saveSuccessMessage = 'Changes will appear after approval.'
+            this.dialogSaveSuccess = true
+            this.pendingSaveClose = false
           } else {
             throw new Error(_.get(resp, 'responseResult.message'))
           }
@@ -504,7 +574,9 @@ export default {
             this.$store.set('editor/id', _.get(resp, 'page.id'))
             this.$store.set('editor/mode', 'update')
             this.exitConfirmed = true
-            window.location.assign(`/${this.$store.get('page/locale')}/${this.$store.get('page/path')}`)
+            this.saveSuccessTitle = 'Page created successfully'
+            this.saveSuccessMessage = this.$t('editor:save.createSuccess')
+            this.dialogSaveSuccess = true
           } else {
             throw new Error(_.get(resp, 'responseResult.message'))
           }
@@ -606,10 +678,15 @@ export default {
               style: 'success',
               icon: 'check'
             })
+            this.exitConfirmed = true
             if (this.locale !== this.$store.get('page/locale') || this.path !== this.$store.get('page/path')) {
               _.delay(() => {
                 window.location.replace(`/e/${this.$store.get('page/locale')}/${this.$store.get('page/path')}`)
               }, 1000)
+            } else {
+              this.saveSuccessTitle = 'Page updated successfully'
+              this.saveSuccessMessage = this.$t('editor:save.updateSuccess')
+              this.dialogSaveSuccess = true
             }
           } else {
             throw new Error(_.get(resp, 'responseResult.message'))
@@ -669,6 +746,17 @@ export default {
         } else {
           window.location.assign(`/${this.$store.get('page/locale')}/${this.$store.get('page/path')}`)
         }
+      }, 500)
+    },
+    exitToPageView() {
+      this.dialogSaveSuccess = false
+      this.$store.commit(`loadingStart`, 'editor-close')
+      this.currentEditor = ''
+      this.exitConfirmed = true
+      const locale = this.$store.get('page/locale')
+      const path = this.$store.get('page/path')
+      _.delay(() => {
+        window.location.assign(`/${locale}/${path}`)
       }, 500)
     },
     setCurrentSavedState () {

@@ -91,6 +91,10 @@ defaults:
       securityHSTSDuration: 300
       securityCSP: false
       securityCSPDirectives: ''
+      guestCommentsPerMinute: 5
+      guestCommentsPerHour: 30
+      guestPageWritesPerMinute: 3
+      guestPageWritesPerHour: 15
     server:
       sslRedir: false
     uploads:

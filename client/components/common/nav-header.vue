@@ -329,7 +329,10 @@ export default {
       return _.intersection(this.permissions, ['manage:system', 'write:users', 'manage:users', 'write:groups', 'manage:groups', 'manage:navigation', 'manage:theme', 'manage:api', 'approve:pages']).length > 0
     },
     hasNewPagePermission () {
-      return this.hasAdminPermission || _.intersection(this.permissions, ['write:pages', 'write:pages:pending']).length > 0
+      return this.hasAdminPermission ||
+        this.hasWritePagesPermission ||
+        this.hasPendingPagesPermission ||
+        _.intersection(this.permissions, ['write:pages', 'write:pages:pending']).length > 0
     },
     hasAdminPermission: get('page/effectivePermissions@system.manage'),
     hasWritePagesPermission: get('page/effectivePermissions@pages.write'),

@@ -254,6 +254,11 @@ module.exports = class Page extends Model {
       opts.path = opts.path.slice(1)
     }
 
+    // -> Guests must submit for review (cannot publish directly)
+    if (opts.user && opts.user.id === 2 && !opts.fromReviewApproval) {
+      throw new WIKI.Error.PageCreateForbidden()
+    }
+
     // -> Check for page access
     const createPerm = opts.fromReviewApproval ? ['approve:pages'] : ['write:pages']
     if (!WIKI.auth.checkAccess(opts.user, createPerm, {
@@ -298,10 +303,11 @@ module.exports = class Page extends Model {
 
     // -> Create page
     const attributedAuthorId = opts.authorId || opts.user.id
+    const isGuestAuthor = attributedAuthorId === 2
     await WIKI.models.pages.query().insert({
       authorId: attributedAuthorId,
-      content: opts.content,
       creatorId: attributedAuthorId,
+      content: opts.content,
       contentType: _.get(_.find(WIKI.data.editors, ['key', opts.editor]), `contentType`, 'text'),
       description: opts.description,
       editorKey: opts.editor,
@@ -314,6 +320,9 @@ module.exports = class Page extends Model {
       publishStartDate: opts.publishStartDate || '',
       title: opts.title,
       toc: '[]',
+      guestName: isGuestAuthor ? (opts.guestName || '') : '',
+      guestEmail: isGuestAuthor ? (opts.guestEmail || '') : '',
+      authorIp: isGuestAuthor ? (opts.authorIp || '') : '',
       extra: JSON.stringify({
         js: scriptJs,
         css: scriptCss
@@ -376,6 +385,11 @@ module.exports = class Page extends Model {
       throw new Error('Invalid Page Id')
     }
 
+    // -> Guests must submit for review (cannot publish directly)
+    if (opts.user && opts.user.id === 2 && !opts.fromReviewApproval) {
+      throw new WIKI.Error.PageUpdateForbidden()
+    }
+
     // -> Check for page access
     const updatePerm = opts.fromReviewApproval ? ['approve:pages'] : ['write:pages']
     if (!WIKI.auth.checkAccess(opts.user, updatePerm, {
@@ -426,14 +440,19 @@ module.exports = class Page extends Model {
     }
 
     // -> Update page
+    const attributedAuthorId = opts.authorId || opts.user.id
+    const isGuestAuthor = attributedAuthorId === 2
     await WIKI.models.pages.query().patch({
-      authorId: opts.authorId || opts.user.id,
+      authorId: attributedAuthorId,
       content: opts.content,
       description: opts.description,
       isPublished: opts.isPublished === true || opts.isPublished === 1,
       publishEndDate: opts.publishEndDate || '',
       publishStartDate: opts.publishStartDate || '',
       title: opts.title,
+      guestName: isGuestAuthor ? (opts.guestName || '') : '',
+      guestEmail: isGuestAuthor ? (opts.guestEmail || '') : '',
+      authorIp: isGuestAuthor ? (opts.authorIp || '') : '',
       extra: JSON.stringify({
         ...ogPage.extra,
         js: scriptJs,
@@ -1002,6 +1021,9 @@ module.exports = class Page extends Model {
           'pages.localeCode',
           'pages.authorId',
           'pages.creatorId',
+          'pages.guestName',
+          'pages.guestEmail',
+          'pages.authorIp',
           'pages.extra',
           {
             authorName: 'author.name',

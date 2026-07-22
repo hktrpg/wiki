@@ -5,6 +5,7 @@ const createDOMPurify = require('dompurify')
 const _ = require('lodash')
 const { AkismetClient } = require('akismet-api')
 const moment = require('moment')
+const ipHelper = require('../../../helpers/ip')
 
 /* global WIKI */
 
@@ -71,7 +72,7 @@ module.exports = {
       authorId: user.id,
       name: user.name,
       email: user.email,
-      ip: user.ip
+      ip: ipHelper.normalizeIp(user.ip)
     }
 
     // -> Check for Spam with Akismet

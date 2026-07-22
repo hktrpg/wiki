@@ -105,7 +105,10 @@ module.exports = class PageHistory extends Model {
       publishStartDate: opts.publishStartDate || '',
       title: opts.title,
       action: opts.action || 'updated',
-      versionDate: opts.versionDate
+      versionDate: opts.versionDate,
+      guestName: opts.guestName || '',
+      guestEmail: opts.guestEmail || '',
+      authorIp: opts.authorIp || ''
     })
   }
 
@@ -129,6 +132,9 @@ module.exports = class PageHistory extends Model {
         'pageHistory.authorId',
         'pageHistory.pageId',
         'pageHistory.versionDate',
+        'pageHistory.guestName',
+        'pageHistory.guestEmail',
+        'pageHistory.authorIp',
         {
           versionId: 'pageHistory.id',
           editor: 'pageHistory.editorKey',
@@ -144,6 +150,7 @@ module.exports = class PageHistory extends Model {
     if (version) {
       return {
         ...version,
+        authorName: version.guestName || version.authorName,
         updatedAt: version.createdAt || null,
         tags: []
       }
@@ -163,6 +170,9 @@ module.exports = class PageHistory extends Model {
         'pageHistory.authorId',
         'pageHistory.action',
         'pageHistory.versionDate',
+        'pageHistory.guestName',
+        'pageHistory.guestEmail',
+        'pageHistory.authorIp',
         {
           authorName: 'author.name'
         }
@@ -185,6 +195,9 @@ module.exports = class PageHistory extends Model {
           'pageHistory.authorId',
           'pageHistory.action',
           'pageHistory.versionDate',
+          'pageHistory.guestName',
+          'pageHistory.guestEmail',
+          'pageHistory.authorIp',
           {
             authorName: 'author.name'
           }
@@ -216,7 +229,9 @@ module.exports = class PageHistory extends Model {
         res.unshift({
           versionId: ph.id,
           authorId: ph.authorId,
-          authorName: ph.authorName,
+          authorName: ph.guestName || ph.authorName,
+          authorEmail: ph.guestEmail || null,
+          authorIP: ph.authorIp || null,
           actionType,
           valueBefore,
           valueAfter,

@@ -159,7 +159,8 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
     }
 
     // -> Resume own pending review content if present
-    if (effectivePermissions.pages.pending && !effectivePermissions.pages.write) {
+    // Guests always use pending workflow even if group also has write:pages
+    if (effectivePermissions.pages.pending && (!effectivePermissions.pages.write || req.user.id === 2)) {
       const pending = await WIKI.models.pageReviews.getOwnPending({
         locale: pageArgs.locale,
         path: pageArgs.path,
@@ -211,7 +212,8 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
     }
 
     // -> Resume own pending create if present
-    if (effectivePermissions.pages.pending && !effectivePermissions.pages.write) {
+    // Guests always use pending workflow even if group also has write:pages
+    if (effectivePermissions.pages.pending && (!effectivePermissions.pages.write || req.user.id === 2)) {
       const pending = await WIKI.models.pageReviews.getOwnPending({
         locale: pageArgs.locale,
         path: pageArgs.path,

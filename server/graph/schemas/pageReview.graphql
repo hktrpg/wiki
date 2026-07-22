@@ -21,6 +21,8 @@ type PageReviewQuery {
     offset: Int
   ): [PageReview]! @auth(requires: ["approve:pages", "manage:system"])
 
+  pendingCount: Int! @auth(requires: ["approve:pages", "manage:system"])
+
   single(
     id: Int!
   ): PageReview @auth(requires: ["write:pages:pending", "approve:pages", "manage:system"])
@@ -50,6 +52,8 @@ type PageReviewMutation {
     tags: [String]!
     title: String!
     changeReason: String!
+    guestName: String
+    guestEmail: String
   ): PageReviewResponse @auth(requires: ["write:pages:pending", "manage:system"]) @rateLimit(limit: 10, duration: 60)
 
   approve(
@@ -100,6 +104,10 @@ type PageReview {
   authorId: Int!
   authorName: String
   authorEmail: String
+  authorIP: String
+  authorIPMasked: String
+  guestName: String
+  guestEmail: String
   reviewerId: Int
   reviewerName: String
   reviewerComment: String

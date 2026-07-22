@@ -113,6 +113,61 @@
                   //-   disabled
                   //- )
 
+              v-card.mt-3.animated.fadeInUp.wait-p1s
+                v-toolbar(color='orange darken-2', dark, dense, flat)
+                  v-toolbar-title.subtitle-1 Guest Rate Limits
+                v-card-info(color='orange')
+                  span Limit anonymous (Guest) comments and page submissions by IP. Set 0 to disable a window.
+                v-card-text
+                  .overline.grey--text.mb-2 Comments
+                  v-layout(row wrap)
+                    v-flex(xs6)
+                      v-text-field(
+                        outlined
+                        type='number'
+                        min='0'
+                        label='Per minute'
+                        v-model.number='config.guestCommentsPerMinute'
+                        prepend-icon='mdi-clock-outline'
+                        hint='Max guest comments per IP per minute'
+                        persistent-hint
+                      )
+                    v-flex(xs6)
+                      v-text-field(
+                        outlined
+                        type='number'
+                        min='0'
+                        label='Per hour'
+                        v-model.number='config.guestCommentsPerHour'
+                        prepend-icon='mdi-timer-sand'
+                        hint='Max guest comments per IP per hour'
+                        persistent-hint
+                      )
+                  .overline.grey--text.mt-4.mb-2 Page Writes (Submit for Review)
+                  v-layout(row wrap)
+                    v-flex(xs6)
+                      v-text-field(
+                        outlined
+                        type='number'
+                        min='0'
+                        label='Per minute'
+                        v-model.number='config.guestPageWritesPerMinute'
+                        prepend-icon='mdi-clock-outline'
+                        hint='Max guest page submissions per IP per minute'
+                        persistent-hint
+                      )
+                    v-flex(xs6)
+                      v-text-field(
+                        outlined
+                        type='number'
+                        min='0'
+                        label='Per hour'
+                        v-model.number='config.guestPageWritesPerHour'
+                        prepend-icon='mdi-timer-sand'
+                        hint='Max guest page submissions per IP per hour'
+                        persistent-hint
+                      )
+
             v-flex(lg6 xs12)
               v-card.animated.fadeInUp.wait-p2s
                 v-toolbar(color='primary', dark, dense, flat)
@@ -271,6 +326,10 @@ export default {
         securityHSTSDuration: 0,
         securityCSP: false,
         securityCSPDirectives: '',
+        guestCommentsPerMinute: 5,
+        guestCommentsPerHour: 30,
+        guestPageWritesPerMinute: 3,
+        guestPageWritesPerHour: 15,
         authAutoLogin: false,
         authHideLocal: false,
         authLoginBgUrl: '',
@@ -317,6 +376,10 @@ export default {
               $securityHSTSDuration: Int
               $securityCSP: Boolean
               $securityCSPDirectives: String
+              $guestCommentsPerMinute: Int
+              $guestCommentsPerHour: Int
+              $guestPageWritesPerMinute: Int
+              $guestPageWritesPerHour: Int
             ) {
               site {
                 updateConfig(
@@ -339,7 +402,11 @@ export default {
                   securityHSTS: $securityHSTS,
                   securityHSTSDuration: $securityHSTSDuration,
                   securityCSP: $securityCSP,
-                  securityCSPDirectives: $securityCSPDirectives
+                  securityCSPDirectives: $securityCSPDirectives,
+                  guestCommentsPerMinute: $guestCommentsPerMinute,
+                  guestCommentsPerHour: $guestCommentsPerHour,
+                  guestPageWritesPerMinute: $guestPageWritesPerMinute,
+                  guestPageWritesPerHour: $guestPageWritesPerHour
                 ) {
                   responseResult {
                     succeeded
@@ -371,7 +438,11 @@ export default {
             securityHSTS: _.get(this.config, 'securityHSTS', false),
             securityHSTSDuration: _.get(this.config, 'securityHSTSDuration', 0),
             securityCSP: _.get(this.config, 'securityCSP', false),
-            securityCSPDirectives: _.get(this.config, 'securityCSPDirectives', '')
+            securityCSPDirectives: _.get(this.config, 'securityCSPDirectives', ''),
+            guestCommentsPerMinute: _.toSafeInteger(_.get(this.config, 'guestCommentsPerMinute', 5)),
+            guestCommentsPerHour: _.toSafeInteger(_.get(this.config, 'guestCommentsPerHour', 30)),
+            guestPageWritesPerMinute: _.toSafeInteger(_.get(this.config, 'guestPageWritesPerMinute', 3)),
+            guestPageWritesPerHour: _.toSafeInteger(_.get(this.config, 'guestPageWritesPerHour', 15))
           },
           watchLoading (isLoading) {
             this.$store.commit(`loading${isLoading ? 'Start' : 'Stop'}`, 'admin-site-update')
@@ -425,6 +496,10 @@ export default {
               securityHSTSDuration
               securityCSP
               securityCSPDirectives
+              guestCommentsPerMinute
+              guestCommentsPerHour
+              guestPageWritesPerMinute
+              guestPageWritesPerHour
             }
           }
         }

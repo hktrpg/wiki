@@ -62,7 +62,7 @@ export default {
               permission: 'write:pages:pending',
               hint: 'Can submit page creates / edits for review (cannot publish directly)',
               warning: false,
-              restrictedForSystem: true,
+              restrictedForSystem: false,
               disabled: false
             },
             {

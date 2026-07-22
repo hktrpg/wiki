@@ -34,7 +34,10 @@ module.exports = () => {
   // Public Assets
   // ----------------------------------------
 
-  app.use(favicon(path.join(WIKI.ROOTPATH, 'assets', 'favicon.ico')))
+  const faviconPath = path.join(WIKI.ROOTPATH, 'assets', 'favicon.ico')
+  if (fs.existsSync(faviconPath)) {
+    app.use(favicon(faviconPath))
+  }
   app.use('/_assets', express.static(path.join(WIKI.ROOTPATH, 'assets')))
 
   // ----------------------------------------
@@ -245,9 +248,9 @@ module.exports = () => {
       })
       const guestGroup = await WIKI.models.groups.query().insert({
         name: 'Guests',
-        permissions: JSON.stringify(['read:pages', 'read:assets', 'read:comments']),
+        permissions: JSON.stringify(['read:pages', 'read:assets', 'read:comments', 'write:comments', 'write:pages:pending']),
         pageRules: JSON.stringify([
-          { id: 'guest', roles: ['read:pages', 'read:assets', 'read:comments'], match: 'START', deny: false, path: '', locales: [] }
+          { id: 'guest', roles: ['read:pages', 'read:assets', 'read:comments', 'write:comments', 'write:pages:pending'], match: 'START', deny: false, path: '', locales: [] }
         ]),
         isSystem: true
       })

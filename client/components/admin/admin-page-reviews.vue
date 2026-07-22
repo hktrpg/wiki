@@ -48,6 +48,9 @@
                   span.ml-2 {{ props.item.path }}
                 td {{ props.item.authorName || props.item.authorId }}
                 td
+                  code(v-if='props.item.authorIP') {{ props.item.authorIP }}
+                  span.grey--text(v-else) —
+                td
                   v-chip(small, :color='statusColor(props.item.status)', dark) {{ props.item.status }}
                 td {{ props.item.updatedAt | moment('calendar') }}
             template(slot='no-data')
@@ -56,7 +59,7 @@
     v-dialog(v-model='dialog', max-width='960', scrollable)
       v-card(v-if='selected')
         v-card-title
-          span Review #{{ selected.id }} — {{ selected.title }}
+          span Review \#{{ selected.id }} - {{ selected.title }}
           v-spacer
           v-chip(small, :color='statusColor(selected.status)', dark) {{ selected.status }}
         v-divider
@@ -64,6 +67,9 @@
           .mb-3
             .caption.grey--text Author
             .body-1 {{ selected.authorName }} ({{ selected.authorEmail }})
+          .mb-3(v-if='selected.authorIP')
+            .caption.grey--text Author IP
+            .body-1: code {{ selected.authorIP }}
           .mb-3
             .caption.grey--text Path
             .body-1 /{{ selected.locale }}/{{ selected.path }}
@@ -81,7 +87,7 @@
             v-tab-item(v-if='selected.liveContent != null')
               pre.review-content {{ selected.liveContent }}
           v-textarea.mt-4(
-            v-if='selected.status === `pending`'
+            v-if='selected.status === "pending"'
             v-model='reviewComment'
             label='Reviewer comment (optional)'
             outlined
@@ -89,7 +95,7 @@
             counter='2000'
           )
         v-divider
-        v-card-actions(v-if='selected.status === `pending`')
+        v-card-actions(v-if='selected.status === "pending"')
           v-btn(text, color='error', :loading='acting', @click='reject') Reject
           v-spacer
           v-btn(text, @click='dialog = false') Close
@@ -117,6 +123,7 @@ const LIST_QUERY = gql`
         gitBranch
         authorId
         authorName
+        authorIP
         updatedAt
         createdAt
       }
@@ -142,6 +149,8 @@ const SINGLE_QUERY = gql`
         authorId
         authorName
         authorEmail
+        authorIP
+        authorIPMasked
         reviewerName
         reviewerComment
         updatedAt
@@ -169,6 +178,7 @@ export default {
         { text: 'Title', value: 'title' },
         { text: 'Path', value: 'path' },
         { text: 'Author', value: 'authorName', width: 160 },
+        { text: 'IP', value: 'authorIP', width: 140 },
         { text: 'Status', value: 'status', width: 120 },
         { text: 'Updated', value: 'updatedAt', width: 180 }
       ]

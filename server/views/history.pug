@@ -13,7 +13,9 @@ block body
       :tags=page.tags
       created-at=page.createdAt
       updated-at=page.updatedAt
-      author-name=page.authorName
+      author-name=(page.guestName || page.authorName)
+      author-email=(page.guestEmail || page.authorEmail || '')
+      author-ip=(page.authorIp || '')
       :author-id=page.authorId
       :is-published=page.isPublished.toString()
       live-content=page.content

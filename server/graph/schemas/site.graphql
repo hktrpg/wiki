@@ -61,6 +61,10 @@ type SiteMutation {
     securityHSTSDuration: Int
     securityCSP: Boolean
     securityCSPDirectives: String
+    guestCommentsPerMinute: Int
+    guestCommentsPerHour: Int
+    guestPageWritesPerMinute: Int
+    guestPageWritesPerHour: Int
     uploadMaxFileSize: Int
     uploadMaxFiles: Int
     uploadScanSVG: Boolean
@@ -111,6 +115,10 @@ type SiteConfig {
   securityHSTSDuration: Int
   securityCSP: Boolean
   securityCSPDirectives: String
+  guestCommentsPerMinute: Int
+  guestCommentsPerHour: Int
+  guestPageWritesPerMinute: Int
+  guestPageWritesPerHour: Int
   uploadMaxFileSize: Int
   uploadMaxFiles: Int
   uploadScanSVG: Boolean

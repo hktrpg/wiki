@@ -324,6 +324,23 @@
                         v-icon(size='20') mdi-trash-can-outline
                     span {{$t('common:header.delete')}}
               span {{$t('common:page.editPage')}}
+            v-alert.mb-5(
+              v-if='canSeePendingReviewsReminder && pendingReviewsCount > 0'
+              color='orange'
+              outlined
+              icon='mdi-file-check-outline'
+              dense
+              )
+              .d-flex.align-center.flex-wrap
+                .caption.mr-3 {{ pendingReviewsCount }} page review(s) awaiting approval.
+                v-btn.ml-auto(
+                  href='/a/page-reviews'
+                  small
+                  depressed
+                  color='orange darken-2'
+                  dark
+                  )
+                  span.text-none Review now
             v-alert.mb-5(v-if='!isPublished', color='red', outlined, icon='mdi-minus-circle', dense)
               .caption {{$t('common:page.unpublishedWarning')}}
             .contents(ref='container')
@@ -366,6 +383,7 @@ import { get, sync } from 'vuex-pathify'
 import _ from 'lodash'
 import ClipboardJS from 'clipboard'
 import Vue from 'vue'
+import gql from 'graphql-tag'
 
 /* global siteLangs */
 
@@ -500,6 +518,7 @@ export default {
       navExpanded: false,
       upBtnShown: false,
       pageEditFab: false,
+      pendingReviewsCount: 0,
       scrollOpts: {
         duration: 1500,
         offset: 0,
@@ -567,6 +586,7 @@ export default {
     hasAdminPermission: get('page/effectivePermissions@system.manage'),
     hasWritePagesPermission: get('page/effectivePermissions@pages.write'),
     hasPendingPagesPermission: get('page/effectivePermissions@pages.pending'),
+    hasApprovePagesPermission: get('page/effectivePermissions@pages.approve'),
     hasManagePagesPermission: get('page/effectivePermissions@pages.manage'),
     hasDeletePagesPermission: get('page/effectivePermissions@pages.delete'),
     hasReadSourcePermission: get('page/effectivePermissions@source.read'),
@@ -578,6 +598,9 @@ export default {
       return this.hasAdminPermission || this.hasWritePagesPermission || this.hasPendingPagesPermission || this.hasManagePagesPermission ||
         this.hasDeletePagesPermission || this.hasReadSourcePermission || this.hasReadHistoryPermission
     },
+    canSeePendingReviewsReminder () {
+      return this.hasApprovePagesPermission || this.hasAdminPermission
+    },
     printView: sync('site/printView'),
     editMenuExternalUrl () {
       if (this.editShortcutsObj.editMenuBar && this.editShortcutsObj.editMenuExternalBtn) {
@@ -585,6 +608,23 @@ export default {
       } else {
         return ''
       }
+    }
+  },
+  apollo: {
+    pendingReviewsCount: {
+      query: gql`
+        {
+          pageReviews {
+            pendingCount
+          }
+        }
+      `,
+      fetchPolicy: 'network-only',
+      skip () {
+        return !this.canSeePendingReviewsReminder
+      },
+      update: (data) => _.get(data, 'pageReviews.pendingCount', 0),
+      pollInterval: 60000
     }
   },
   created() {

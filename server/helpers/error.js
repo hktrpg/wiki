@@ -225,6 +225,10 @@ module.exports = {
     message: 'A valid change reason is required.',
     code: 6019
   }),
+  GuestRateLimitExceeded: CustomError('GuestRateLimitExceeded', {
+    message: 'Too many requests from this IP. Please try again later.',
+    code: 1019
+  }),
   SearchActivationFailed: CustomError('SearchActivationFailed', {
     message: 'Search Engine activation failed.',
     code: 4002

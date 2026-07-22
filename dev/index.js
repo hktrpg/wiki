@@ -27,6 +27,10 @@ const init = {
       hotMiddleware: require('webpack-hot-middleware')(global.WP)
     }
     global.WP_DEV.devMiddleware.waitUntilValid(() => {
+      // Ensure static assets are on disk before Express serve-favicon runs (Windows race)
+      const fs = require('fs-extra')
+      const path = require('path')
+      fs.copySync(path.join(process.cwd(), 'client/static'), path.join(process.cwd(), 'assets'), { overwrite: false })
       console.info(chalk.yellow.bold('>>> Starting Wiki.js in DEVELOPER mode...'))
       require('../server')
 
