@@ -14,7 +14,7 @@
       v-if='permissions.write'
       :aria-label='$t(`common:comments.fieldContent`)'
     )
-    v-row.mt-2(dense, v-if='!isAuthenticated && permissions.write')
+    v-row.mt-2(dense, v-if='isGuestCommenter && permissions.write')
       v-col(cols='12', lg='6')
         v-text-field(
           outlined
@@ -85,7 +85,10 @@
             .comments-post-actions(v-if='permissions.manage && !isBusy && commentEditId === 0')
               v-icon.mr-3(small, @click='editComment(cm)') mdi-pencil
               v-icon(small, @click='deleteCommentConfirm(cm)') mdi-delete
-            .comments-post-name.caption: strong {{cm.authorName}}
+            .comments-post-name.caption
+              strong {{cm.authorName}}
+              span.grey--text.ml-2(v-if='canSeeFullCommentIp && cm.authorEmail') · {{ cm.authorEmail }}
+              span.grey--text.ml-2(v-if='displayCommentIp(cm)') · {{ displayCommentIp(cm) }}
             .comments-post-date.overline.grey--text {{cm.createdAt | moment('from') }} #[em(v-if='cm.createdAt !== cm.updatedAt') - {{$t('common:comments.modified', { reldate: $options.filters.moment(cm.updatedAt, 'from') })}}]
             .comments-post-content.mt-3(v-if='commentEditId !== cm.id', v-html='cm.render')
             .comments-post-editcontent.mt-3(v-else)
@@ -138,16 +141,18 @@ import gql from 'graphql-tag'
 import { get } from 'vuex-pathify'
 import validate from 'validate.js'
 import _ from 'lodash'
+import guestIdentity from '../helpers/guestIdentity'
 
 export default {
   data () {
+    const identity = typeof window !== 'undefined' ? guestIdentity.read() : { name: '', email: '' }
     return {
       newcomment: '',
       isLoading: true,
       hasLoadedOnce: false,
       comments: [],
-      guestName: '',
-      guestEmail: '',
+      guestName: identity.name || '',
+      guestEmail: identity.email || '',
       commentToDelete: {},
       commentEditId: 0,
       commentEditContent: null,
@@ -164,9 +169,23 @@ export default {
     pageId: get('page/id'),
     permissions: get('page/effectivePermissions@comments'),
     isAuthenticated: get('user/authenticated'),
-    userDisplayName: get('user/name')
+    userId: get('user/id'),
+    userDisplayName: get('user/name'),
+    isGuestCommenter () {
+      return !this.isAuthenticated || this.userId === 2
+    },
+    canSeeFullCommentIp () {
+      return !!(this.permissions && this.permissions.manage) ||
+        !!this.$store.get('page/effectivePermissions@system.manage')
+    }
   },
   methods: {
+    displayCommentIp (cm) {
+      if (!this.canSeeFullCommentIp) {
+        return ''
+      }
+      return cm.authorIP || cm.authorIPMasked || ''
+    },
     onIntersect (entries, observer, isIntersecting) {
       if (isIntersecting) {
         this.fetch(true)
@@ -183,6 +202,9 @@ export default {
                   id
                   render
                   authorName
+                  authorEmail
+                  authorIP
+                  authorIPMasked
                   createdAt
                   updatedAt
                 }
@@ -231,7 +253,7 @@ export default {
           }
         }
       }
-      if (!this.isAuthenticated && this.permissions.write) {
+      if (this.isGuestCommenter && this.permissions.write) {
         rules.name = {
           presence: {
             allowEmpty: false
@@ -302,6 +324,12 @@ export default {
         })
 
         if (_.get(resp, 'data.comments.create.responseResult.succeeded', false)) {
+          if (this.isGuestCommenter) {
+            guestIdentity.write({
+              name: this.guestName,
+              email: this.guestEmail
+            })
+          }
           this.$store.commit('showNotification', {
             style: 'success',
             message: this.$t('common:comments.postSuccess'),

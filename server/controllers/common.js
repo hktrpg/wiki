@@ -10,6 +10,67 @@ const qs = require('querystring')
 
 const tmplCreateRegex = /^[0-9]+(,[0-9]+)?$/
 
+function guestEmailFromReq (req) {
+  return _.toLower(_.trim(_.get(req, 'cookies.wikiGuestEmail', '') || ''))
+}
+
+/**
+ * Render pending review preview for author / approver.
+ * @returns {Promise<boolean>} true if response was sent
+ */
+async function tryRenderPendingPreview (req, res, { pendingReview, pageArgs, effectivePermissions, hasLivePage }) {
+  if (!pendingReview) {
+    return false
+  }
+  const isAuthor = WIKI.models.pageReviews.isSameAuthor(pendingReview, {
+    user: req.user,
+    ip: req.ip,
+    guestEmail: guestEmailFromReq(req)
+  })
+  const canApprove = WIKI.auth.checkAccess(req.user, ['approve:pages'], pageArgs) ||
+    WIKI.auth.checkAccess(req.user, ['manage:system'])
+  if (!isAuthor && !canApprove) {
+    return false
+  }
+
+  const authorName = pendingReview.guestName || _.get(pendingReview, 'author.name', 'Unknown')
+  const authorEmail = canApprove
+    ? (pendingReview.guestEmail || _.get(pendingReview, 'author.email', ''))
+    : (isAuthor ? (pendingReview.guestEmail || '') : '')
+  let renderHtml = ''
+  try {
+    renderHtml = await WIKI.models.pages.renderContentToHtml(pendingReview)
+  } catch (err) {
+    WIKI.logger.warn('(PAGE-REVIEW) Failed to render pending preview:')
+    WIKI.logger.warn(err)
+    renderHtml = pendingReview.content || ''
+  }
+  _.set(res.locals, 'pageMeta.title', pendingReview.title || 'Pending Review')
+  res.render('pending-page', {
+    review: {
+      id: pendingReview.id,
+      title: pendingReview.title,
+      description: pendingReview.description || '',
+      path: pendingReview.path,
+      locale: pendingReview.localeCode,
+      changeReason: pendingReview.changeReason,
+      content: pendingReview.content,
+      render: renderHtml,
+      status: pendingReview.status,
+      authorName,
+      authorEmail,
+      authorIp: canApprove ? (pendingReview.authorIp || '') : '',
+      createdAt: pendingReview.createdAt,
+      updatedAt: pendingReview.updatedAt
+    },
+    isAuthor,
+    canApprove,
+    hasLivePage: !!hasLivePage,
+    effectivePermissions
+  })
+  return true
+}
+
 /**
  * Robots.txt
  */
@@ -45,7 +106,8 @@ router.get(['/a', '/a/*'], (req, res, next) => {
     'manage:groups',
     'manage:navigation',
     'manage:theme',
-    'manage:api'
+    'manage:api',
+    'approve:pages'
   ])) {
     _.set(res.locals, 'pageMeta.title', 'Unauthorized')
     return res.status(403).render('unauthorized', { action: 'view' })
@@ -140,7 +202,7 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
 
   if (page) {
     // -> EDIT MODE
-    if (!(effectivePermissions.pages.write || effectivePermissions.pages.manage)) {
+    if (!(effectivePermissions.pages.write || effectivePermissions.pages.manage || effectivePermissions.pages.pending)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
       return res.status(403).render('unauthorized', { action: 'edit' })
     }
@@ -157,6 +219,31 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
       page.extra.css = new CleanCSS({ format: 'beautify' }).minify(page.extra.css).styles
     }
 
+    // -> Resume own pending review content if present
+    // Guests always use pending workflow even if group also has write:pages
+    if (effectivePermissions.pages.pending && (!effectivePermissions.pages.write || req.user.id === 2)) {
+      const pending = await WIKI.models.pageReviews.getOwnPending({
+        locale: pageArgs.locale,
+        path: pageArgs.path,
+        userId: req.user.id,
+        ip: req.ip,
+        guestEmail: guestEmailFromReq(req)
+      })
+      if (pending) {
+        page.content = pending.content
+        page.title = pending.title
+        page.description = pending.description
+        page.tags = pending.tags || page.tags
+        page.editorKey = pending.editorKey || page.editorKey
+        page.pendingReviewId = pending.id
+        page.changeReason = pending.changeReason
+        page.extra = {
+          css: pending.scriptCss || '',
+          js: pending.scriptJs || ''
+        }
+      }
+    }
+
     _.set(res.locals, 'pageMeta.title', `Edit ${page.title}`)
     _.set(res.locals, 'pageMeta.description', page.description)
     page.mode = 'update'
@@ -164,7 +251,7 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
     page.content = Buffer.from(page.content).toString('base64')
   } else {
     // -> CREATE MODE
-    if (!effectivePermissions.pages.write) {
+    if (!(effectivePermissions.pages.write || effectivePermissions.pages.pending)) {
       _.set(res.locals, 'pageMeta.title', 'Unauthorized')
       return res.status(403).render('unauthorized', { action: 'create' })
     }
@@ -182,6 +269,34 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
       extra: {
         css: '',
         js: ''
+      },
+      pendingReviewId: null,
+      changeReason: ''
+    }
+
+    // -> Resume own pending create if present
+    // Guests always use pending workflow even if group also has write:pages
+    if (effectivePermissions.pages.pending && (!effectivePermissions.pages.write || req.user.id === 2)) {
+      const pending = await WIKI.models.pageReviews.getOwnPending({
+        locale: pageArgs.locale,
+        path: pageArgs.path,
+        userId: req.user.id,
+        ip: req.ip,
+        guestEmail: guestEmailFromReq(req)
+      })
+      if (pending) {
+        page.content = Buffer.from(pending.content).toString('base64')
+        page.title = pending.title
+        page.description = pending.description
+        page.tags = pending.tags || []
+        page.editorKey = pending.editorKey
+        page.pendingReviewId = pending.id
+        page.changeReason = pending.changeReason
+        page.extra = {
+          css: pending.scriptCss || '',
+          js: pending.scriptJs || ''
+        }
+        page.isPublished = (pending.isPublished === true || pending.isPublished === 1) ? 'true' : 'false'
       }
     }
 
@@ -273,6 +388,14 @@ router.get(['/h', '/h/*'], async (req, res, next) => {
   if (page) {
     _.set(res.locals, 'pageMeta.title', page.title)
     _.set(res.locals, 'pageMeta.description', page.description)
+
+    const revealHistoryPii = WIKI.auth.checkAccess(req.user, ['manage:system']) ||
+      WIKI.auth.checkAccess(req.user, ['approve:pages'], pageArgs)
+    if (!revealHistoryPii) {
+      page.guestEmail = ''
+      page.authorEmail = ''
+      page.authorIp = ''
+    }
 
     res.render('history', { page, effectivePermissions })
   } else {
@@ -463,6 +586,22 @@ router.get('/*', async (req, res, next) => {
         _.set(res.locals, 'pageMeta.title', page.title)
         _.set(res.locals, 'pageMeta.description', page.description)
 
+        // -> Pending edit preview (?view=pending)
+        const pendingForPath = await WIKI.models.pageReviews.getPendingByPath({
+          locale: pageArgs.locale,
+          path: pageArgs.path
+        })
+        if (req.query.view === 'pending') {
+          if (await tryRenderPendingPreview(req, res, {
+            pendingReview: pendingForPath,
+            pageArgs,
+            effectivePermissions,
+            hasLivePage: true
+          })) {
+            return
+          }
+        }
+
         // -> Check Publishing State
         let pageIsPublished = page.isPublished
         if (pageIsPublished && !_.isEmpty(page.publishStartDate)) {
@@ -476,6 +615,27 @@ router.get('/*', async (req, res, next) => {
           return res.status(403).render('unauthorized', {
             action: 'view'
           })
+        }
+
+        // -> Pending banner meta for author / approver
+        let pendingPreview = null
+        if (pendingForPath) {
+          const isPendingAuthor = WIKI.models.pageReviews.isSameAuthor(pendingForPath, {
+            user: req.user,
+            ip: req.ip,
+            guestEmail: guestEmailFromReq(req)
+          })
+          const canApprovePending = WIKI.auth.checkAccess(req.user, ['approve:pages'], pageArgs) ||
+            WIKI.auth.checkAccess(req.user, ['manage:system'])
+          if (isPendingAuthor || canApprovePending) {
+            pendingPreview = {
+              id: pendingForPath.id,
+              title: pendingForPath.title,
+              updatedAt: pendingForPath.updatedAt,
+              isAuthor: isPendingAuthor,
+              canApprove: canApprovePending
+            }
+          }
         }
 
         // -> Build sidebar navigation
@@ -555,15 +715,30 @@ router.get('/*', async (req, res, next) => {
             injectCode,
             comments: commentTmpl,
             effectivePermissions,
-            pageFilename
+            pageFilename,
+            pendingPreview
           })
         }
       } else if (pageArgs.path === 'home') {
         _.set(res.locals, 'pageMeta.title', 'Welcome')
         res.render('welcome', { locale: pageArgs.locale })
       } else {
+        // -> Pending new-page preview for author / approver
+        const pendingReview = await WIKI.models.pageReviews.getPendingByPath({
+          locale: pageArgs.locale,
+          path: pageArgs.path
+        })
+        if (await tryRenderPendingPreview(req, res, {
+          pendingReview,
+          pageArgs,
+          effectivePermissions,
+          hasLivePage: false
+        })) {
+          return
+        }
+
         _.set(res.locals, 'pageMeta.title', 'Page Not Found')
-        if (effectivePermissions.pages.write) {
+        if (effectivePermissions.pages.write || effectivePermissions.pages.pending) {
           res.status(404).render('new', { path: pageArgs.path, locale: pageArgs.locale })
         } else {
           res.status(404).render('notfound', { action: 'view' })

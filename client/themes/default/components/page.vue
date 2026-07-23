@@ -247,7 +247,7 @@
                       v-model='pageEditFab'
                       @click='pageEdit'
                       v-on='onEditActivator'
-                      :disabled='!hasWritePagesPermission'
+                      :disabled='!canEditPage'
                       :aria-label='$t(`common:page.editPage`)'
                       )
                       v-icon mdi-pencil
@@ -324,6 +324,40 @@
                         v-icon(size='20') mdi-trash-can-outline
                     span {{$t('common:header.delete')}}
               span {{$t('common:page.editPage')}}
+            v-alert.mb-5(
+              v-if='pendingPreviewData'
+              color='orange'
+              outlined
+              icon='mdi-file-clock-outline'
+              dense
+              )
+              .d-flex.align-center.flex-wrap
+                .caption.mr-3 {{ pendingPreviewBannerText }}
+                v-btn.ml-auto(
+                  :href='pendingPreviewHref'
+                  small
+                  depressed
+                  color='orange darken-2'
+                  dark
+                  )
+                  span.text-none View proposal
+            v-alert.mb-5(
+              v-if='canSeePendingReviewsReminder && pendingReviewsCount > 0'
+              color='orange'
+              outlined
+              icon='mdi-file-check-outline'
+              dense
+              )
+              .d-flex.align-center.flex-wrap
+                .caption.mr-3 {{ pendingReviewsCount }} page review(s) awaiting approval.
+                v-btn.ml-auto(
+                  href='/a/page-reviews'
+                  small
+                  depressed
+                  color='orange darken-2'
+                  dark
+                  )
+                  span.text-none Review now
             v-alert.mb-5(v-if='!isPublished', color='red', outlined, icon='mdi-minus-circle', dense)
               .caption {{$t('common:page.unpublishedWarning')}}
             .contents(ref='container')
@@ -366,6 +400,7 @@ import { get, sync } from 'vuex-pathify'
 import _ from 'lodash'
 import ClipboardJS from 'clipboard'
 import Vue from 'vue'
+import gql from 'graphql-tag'
 
 /* global siteLangs */
 
@@ -491,6 +526,10 @@ export default {
     filename: {
       type: String,
       default: ''
+    },
+    pendingPreview: {
+      type: String,
+      default: ''
     }
   },
   data() {
@@ -500,6 +539,8 @@ export default {
       navExpanded: false,
       upBtnShown: false,
       pageEditFab: false,
+      pendingReviewsCount: 0,
+      pendingPreviewData: null,
       scrollOpts: {
         duration: 1500,
         offset: 0,
@@ -566,13 +607,32 @@ export default {
     tocPosition: get('site/tocPosition'),
     hasAdminPermission: get('page/effectivePermissions@system.manage'),
     hasWritePagesPermission: get('page/effectivePermissions@pages.write'),
+    hasPendingPagesPermission: get('page/effectivePermissions@pages.pending'),
+    hasApprovePagesPermission: get('page/effectivePermissions@pages.approve'),
     hasManagePagesPermission: get('page/effectivePermissions@pages.manage'),
     hasDeletePagesPermission: get('page/effectivePermissions@pages.delete'),
     hasReadSourcePermission: get('page/effectivePermissions@source.read'),
     hasReadHistoryPermission: get('page/effectivePermissions@history.read'),
+    canEditPage () {
+      return this.hasWritePagesPermission || this.hasPendingPagesPermission
+    },
     hasAnyPagePermissions () {
-      return this.hasAdminPermission || this.hasWritePagesPermission || this.hasManagePagesPermission ||
+      return this.hasAdminPermission || this.hasWritePagesPermission || this.hasPendingPagesPermission || this.hasManagePagesPermission ||
         this.hasDeletePagesPermission || this.hasReadSourcePermission || this.hasReadHistoryPermission
+    },
+    canSeePendingReviewsReminder () {
+      return this.hasApprovePagesPermission || this.hasAdminPermission
+    },
+    pendingPreviewBannerText () {
+      if (!this.pendingPreviewData) {
+        return ''
+      }
+      return this.pendingPreviewData.isAuthor
+        ? 'Your proposed changes are awaiting approval.'
+        : 'This page has proposed changes awaiting approval.'
+    },
+    pendingPreviewHref () {
+      return `/${this.locale}/${this.path}?view=pending`
     },
     printView: sync('site/printView'),
     editMenuExternalUrl () {
@@ -581,6 +641,23 @@ export default {
       } else {
         return ''
       }
+    }
+  },
+  apollo: {
+    pendingReviewsCount: {
+      query: gql`
+        {
+          pageReviews {
+            pendingCount
+          }
+        }
+      `,
+      fetchPolicy: 'network-only',
+      skip () {
+        return !this.canSeePendingReviewsReminder
+      },
+      update: (data) => _.get(data, 'pageReviews.pendingCount', 0),
+      pollInterval: 60000
     }
   },
   created() {
@@ -596,6 +673,13 @@ export default {
     this.$store.set('page/title', this.title)
     this.$store.set('page/editor', this.editor)
     this.$store.set('page/updatedAt', this.updatedAt)
+    if (this.pendingPreview) {
+      try {
+        this.pendingPreviewData = JSON.parse(Buffer.from(this.pendingPreview, 'base64').toString())
+      } catch (err) {
+        this.pendingPreviewData = null
+      }
+    }
     if (this.effectivePermissions) {
       this.$store.set('page/effectivePermissions', JSON.parse(Buffer.from(this.effectivePermissions, 'base64').toString()))
     }

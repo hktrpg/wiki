@@ -509,6 +509,8 @@ module.exports = {
       pages: {
         read: WIKI.auth.checkAccess(req.user, ['read:pages'], page),
         write: WIKI.auth.checkAccess(req.user, ['write:pages'], page),
+        pending: WIKI.auth.checkAccess(req.user, ['write:pages:pending'], page),
+        approve: WIKI.auth.checkAccess(req.user, ['approve:pages'], page),
         manage: WIKI.auth.checkAccess(req.user, ['manage:pages'], page),
         delete: WIKI.auth.checkAccess(req.user, ['delete:pages'], page),
         script: WIKI.auth.checkAccess(req.user, ['write:scripts'], page),

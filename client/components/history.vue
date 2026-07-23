@@ -33,11 +33,11 @@
                   v-toolbar(flat, :color='trailBgColor(ph.actionType)', height='40')
                     .caption(:title='$options.filters.moment(ph.versionDate, `LLL`)') {{ ph.versionDate | moment('ll') }}
                     v-divider.mx-3(vertical)
-                    .caption(v-if='ph.actionType === `edit`') Edited by #[strong {{ ph.authorName }}]
-                    .caption(v-else-if='ph.actionType === `move`') Moved from #[strong {{ph.valueBefore}}] to #[strong {{ph.valueAfter}}] by #[strong {{ ph.authorName }}]
-                    .caption(v-else-if='ph.actionType === `initial`') Created by #[strong {{ ph.authorName }}]
-                    .caption(v-else-if='ph.actionType === `live`') Last Edited by #[strong {{ ph.authorName }}]
-                    .caption(v-else) Unknown Action by #[strong {{ ph.authorName }}]
+                    .caption(v-if='ph.actionType === `edit`') Edited by #[strong {{ formatAuthor(ph) }}]
+                    .caption(v-else-if='ph.actionType === `move`') Moved from #[strong {{ph.valueBefore}}] to #[strong {{ph.valueAfter}}] by #[strong {{ formatAuthor(ph) }}]
+                    .caption(v-else-if='ph.actionType === `initial`') Created by #[strong {{ formatAuthor(ph) }}]
+                    .caption(v-else-if='ph.actionType === `live`') Last Edited by #[strong {{ formatAuthor(ph) }}]
+                    .caption(v-else) Unknown Action by #[strong {{ formatAuthor(ph) }}]
                     v-spacer
                     v-menu(offset-x, left)
                       template(v-slot:activator='{ on }')
@@ -174,6 +174,14 @@ export default {
       type: String,
       default: 'Unknown'
     },
+    authorEmail: {
+      type: String,
+      default: ''
+    },
+    authorIp: {
+      type: String,
+      default: ''
+    },
     authorId: {
       type: Number,
       default: 0
@@ -232,6 +240,8 @@ export default {
         versionId: 0,
         authorId: this.authorId,
         authorName: this.authorName,
+        authorEmail: this.authorEmail || null,
+        authorIP: this.authorIp || null,
         actionType: 'live',
         valueBefore: null,
         valueAfter: null,
@@ -326,6 +336,17 @@ export default {
     }
   },
   methods: {
+    formatAuthor (ph) {
+      const name = ph.authorName || 'Unknown'
+      const parts = [name]
+      if (ph.authorEmail) {
+        parts.push(ph.authorEmail)
+      }
+      if (ph.authorIP) {
+        parts.push(ph.authorIP)
+      }
+      return parts.join(' · ')
+    },
     async loadVersion (versionId) {
       this.$store.commit(`loadingStart`, 'history-version-' + versionId)
       const resp = await this.$apollo.query({
@@ -527,6 +548,8 @@ export default {
                 versionId
                 authorId
                 authorName
+                authorEmail
+                authorIP
                 actionType
                 valueBefore
                 valueAfter

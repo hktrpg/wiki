@@ -160,6 +160,7 @@ Vue.component('Loader', () => import(/* webpackPrefetch: true, webpackChunkName:
 Vue.component('Login', () => import(/* webpackPrefetch: true, webpackChunkName: "login" */ './components/login.vue'))
 Vue.component('NavHeader', () => import(/* webpackMode: "eager" */ './components/common/nav-header.vue'))
 Vue.component('NewPage', () => import(/* webpackChunkName: "new-page" */ './components/new-page.vue'))
+Vue.component('PendingPage', () => import(/* webpackChunkName: "pending-page" */ './components/pending-page.vue'))
 Vue.component('Notify', () => import(/* webpackMode: "eager" */ './components/common/notify.vue'))
 Vue.component('NotFound', () => import(/* webpackChunkName: "not-found" */ './components/not-found.vue'))
 Vue.component('PageSelector', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/page-selector.vue'))

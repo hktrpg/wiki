@@ -201,6 +201,34 @@ module.exports = {
     message: 'You are not authorized to view this page.',
     code: 6013
   }),
+  PageReviewForbidden: CustomError('PageReviewForbidden', {
+    message: 'You are not authorized to perform this page review action.',
+    code: 6014
+  }),
+  PageReviewNotFound: CustomError('PageReviewNotFound', {
+    message: 'This page review does not exist.',
+    code: 6015
+  }),
+  PageReviewConflict: CustomError('PageReviewConflict', {
+    message: 'Another pending review already exists for this page path.',
+    code: 6016
+  }),
+  PageReviewInvalidState: CustomError('PageReviewInvalidState', {
+    message: 'This page review cannot be modified in its current state.',
+    code: 6017
+  }),
+  PageReviewSelfApprovalDenied: CustomError('PageReviewSelfApprovalDenied', {
+    message: 'You cannot approve or reject your own page review.',
+    code: 6018
+  }),
+  PageReviewInvalidReason: CustomError('PageReviewInvalidReason', {
+    message: 'A valid change reason is required.',
+    code: 6019
+  }),
+  GuestRateLimitExceeded: CustomError('GuestRateLimitExceeded', {
+    message: 'Too many requests from this IP. Please try again later.',
+    code: 1019
+  }),
   SearchActivationFailed: CustomError('SearchActivationFailed', {
     message: 'Search Engine activation failed.',
     code: 4002

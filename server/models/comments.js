@@ -61,6 +61,9 @@ module.exports = class Comment extends Model {
    * Post New Comment
    */
   static async postNewComment ({ pageId, replyTo, content, guestName, guestEmail, user, ip }) {
+    // -> Guest IP rate limit
+    require('../helpers/guestRateLimit').consume({ user, ip, action: 'comment' })
+
     // -> Input validation
     if (user.id === 2) {
       const validation = validate({

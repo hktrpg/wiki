@@ -6,6 +6,7 @@ const { pipeline } = require('node:stream/promises')
 const { Transform } = require('node:stream')
 const klaw = require('klaw')
 const os = require('os')
+const { DateTime } = require('luxon')
 
 const pageHelper = require('../../../helpers/page')
 const assetHelper = require('../../../helpers/asset')
@@ -519,5 +520,105 @@ module.exports = {
     await fs.emptyDir(this.repoPath)
     WIKI.logger.info('(STORAGE/GIT) Local repository is now empty. Reinitializing...')
     await this.init()
+  },
+  /**
+   * Push a review draft to a new draft/* branch (server-generated name).
+   * Always returns to the configured base branch afterwards.
+   */
+  async pushReviewDraft(pageLike) {
+    const safePath = _.toString(pageLike.path || 'page')
+      .toLowerCase()
+      .replace(/[^a-z0-9/_-]+/g, '-')
+      .replace(/\/+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 80) || 'page'
+    const ts = DateTime.utc().toFormat('yyyyMMddHHmmss')
+    const userId = _.toSafeInteger(pageLike.userId) || 0
+    const draftBranch = `draft/${userId}-${safePath}-${ts}`
+
+    if (!/^draft\/[a-zA-Z0-9/_-]+$/.test(draftBranch)) {
+      throw new Error('Invalid draft branch name generated')
+    }
+
+    const baseBranch = this.config.branch
+    WIKI.logger.info(`(STORAGE/GIT) Creating review draft branch ${draftBranch} from ${baseBranch}...`)
+
+    try {
+      await this.git.checkout(baseBranch)
+      await this.git.pull('origin', baseBranch, ['--rebase']).catch(() => {})
+      await this.git.checkoutLocalBranch(draftBranch)
+
+      let fileName = `${pageLike.path}.${pageHelper.getFileExtension(pageLike.contentType)}`
+      if (this.config.alwaysNamespace || (WIKI.config.lang.namespacing && WIKI.config.lang.code !== pageLike.localeCode)) {
+        fileName = `${pageLike.localeCode}/${fileName}`
+      }
+      const filePath = path.join(this.repoPath, fileName)
+
+      const pageObj = {
+        title: pageLike.title,
+        description: pageLike.description,
+        isPublished: pageLike.isPublished === true || pageLike.isPublished === 1,
+        updatedAt: pageLike.updatedAt || new Date().toISOString(),
+        createdAt: pageLike.createdAt || new Date().toISOString(),
+        tags: pageLike.tags || [],
+        editorKey: pageLike.editorKey,
+        contentType: pageLike.contentType,
+        content: pageLike.content,
+        injectMetadata() {
+          return pageHelper.injectPageMetadata(this)
+        }
+      }
+      await fs.outputFile(filePath, pageObj.injectMetadata(), 'utf8')
+
+      const gitFilePath = `./${fileName}`
+      if ((await this.git.checkIgnore(gitFilePath)).length !== 0) {
+        throw new Error(`Review draft file is gitignored: ${fileName}`)
+      }
+      await this.git.add(gitFilePath)
+      const message = _.trim(_.toString(pageLike.message || `docs: review ${pageLike.path}`)).substring(0, 500)
+      await this.git.commit(message, fileName, {
+        '--author': `"${pageLike.authorName} <${pageLike.authorEmail}>"`
+      })
+
+      await this.git.push('origin', draftBranch, ['--signed=if-asked'])
+      WIKI.logger.info(`(STORAGE/GIT) Review draft pushed to ${draftBranch}`)
+      return draftBranch
+    } finally {
+      try {
+        await this.git.checkout(baseBranch)
+      } catch (err) {
+        WIKI.logger.warn(`(STORAGE/GIT) Failed to return to base branch ${baseBranch} after draft push`)
+        WIKI.logger.warn(err)
+      }
+    }
+  },
+  /**
+   * Delete a review draft branch. Only draft/* branches are allowed.
+   */
+  async deleteReviewBranch(branch) {
+    const name = _.toString(branch || '')
+    if (!name.startsWith('draft/') || !/^draft\/[a-zA-Z0-9/_-]+$/.test(name)) {
+      throw new Error('Refusing to delete non-draft branch')
+    }
+
+    const baseBranch = this.config.branch
+    WIKI.logger.info(`(STORAGE/GIT) Deleting review draft branch ${name}...`)
+
+    try {
+      await this.git.checkout(baseBranch)
+      try {
+        await this.git.deleteLocalBranch(name, true)
+      } catch (err) {
+        WIKI.logger.warn(`(STORAGE/GIT) Local draft branch delete skipped: ${err.message}`)
+      }
+      await this.git.push('origin', `:${name}`)
+    } finally {
+      try {
+        await this.git.checkout(baseBranch)
+      } catch (err) {
+        WIKI.logger.warn(`(STORAGE/GIT) Failed to return to base branch after draft delete`)
+        WIKI.logger.warn(err)
+      }
+    }
   }
 }

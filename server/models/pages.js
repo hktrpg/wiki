@@ -254,12 +254,18 @@ module.exports = class Page extends Model {
       opts.path = opts.path.slice(1)
     }
 
+    // -> Guests must submit for review (cannot publish directly)
+    if (opts.user && opts.user.id === 2 && !opts.fromReviewApproval) {
+      throw new WIKI.Error.PageCreateForbidden()
+    }
+
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
+    const createPerm = opts.fromReviewApproval ? ['approve:pages'] : ['write:pages']
+    if (!WIKI.auth.checkAccess(opts.user, createPerm, {
       locale: opts.locale,
       path: opts.path
     })) {
-      throw new WIKI.Error.PageDeleteForbidden()
+      throw new WIKI.Error.PageCreateForbidden()
     }
 
     // -> Check for duplicate
@@ -296,10 +302,12 @@ module.exports = class Page extends Model {
     }
 
     // -> Create page
+    const attributedAuthorId = opts.authorId || opts.user.id
+    const isGuestAuthor = attributedAuthorId === 2
     await WIKI.models.pages.query().insert({
-      authorId: opts.user.id,
+      authorId: attributedAuthorId,
+      creatorId: attributedAuthorId,
       content: opts.content,
-      creatorId: opts.user.id,
       contentType: _.get(_.find(WIKI.data.editors, ['key', opts.editor]), `contentType`, 'text'),
       description: opts.description,
       editorKey: opts.editor,
@@ -312,6 +320,9 @@ module.exports = class Page extends Model {
       publishStartDate: opts.publishStartDate || '',
       title: opts.title,
       toc: '[]',
+      guestName: isGuestAuthor ? (opts.guestName || '') : '',
+      guestEmail: isGuestAuthor ? (opts.guestEmail || '') : '',
+      authorIp: isGuestAuthor ? (opts.authorIp || '') : '',
       extra: JSON.stringify({
         js: scriptJs,
         css: scriptCss
@@ -374,8 +385,14 @@ module.exports = class Page extends Model {
       throw new Error('Invalid Page Id')
     }
 
+    // -> Guests must submit for review (cannot publish directly)
+    if (opts.user && opts.user.id === 2 && !opts.fromReviewApproval) {
+      throw new WIKI.Error.PageUpdateForbidden()
+    }
+
     // -> Check for page access
-    if (!WIKI.auth.checkAccess(opts.user, ['write:pages'], {
+    const updatePerm = opts.fromReviewApproval ? ['approve:pages'] : ['write:pages']
+    if (!WIKI.auth.checkAccess(opts.user, updatePerm, {
       locale: ogPage.localeCode,
       path: ogPage.path
     })) {
@@ -423,14 +440,19 @@ module.exports = class Page extends Model {
     }
 
     // -> Update page
+    const attributedAuthorId = opts.authorId || opts.user.id
+    const isGuestAuthor = attributedAuthorId === 2
     await WIKI.models.pages.query().patch({
-      authorId: opts.user.id,
+      authorId: attributedAuthorId,
       content: opts.content,
       description: opts.description,
       isPublished: opts.isPublished === true || opts.isPublished === 1,
       publishEndDate: opts.publishEndDate || '',
       publishStartDate: opts.publishStartDate || '',
       title: opts.title,
+      guestName: isGuestAuthor ? (opts.guestName || '') : '',
+      guestEmail: isGuestAuthor ? (opts.guestEmail || '') : '',
+      authorIp: isGuestAuthor ? (opts.authorIp || '') : '',
       extra: JSON.stringify({
         ...ogPage.extra,
         js: scriptJs,
@@ -944,6 +966,48 @@ module.exports = class Page extends Model {
   }
 
   /**
+   * Render page-like content to HTML in-process (no DB write).
+   * Used for pending review previews.
+   */
+  static async renderContentToHtml(pageLike) {
+    const content = _.toString(pageLike.content || '')
+    if (!content) {
+      return ''
+    }
+
+    await WIKI.models.renderers.fetchDefinitions()
+    const contentType = pageLike.contentType || 'html'
+    const pipeline = await WIKI.models.renderers.getRenderingPipeline(contentType)
+    if (!pipeline || pipeline.length < 1) {
+      return content
+    }
+
+    const page = {
+      id: 0,
+      path: pageLike.path || '',
+      localeCode: pageLike.localeCode || pageLike.locale || 'en',
+      title: pageLike.title || '',
+      description: pageLike.description || '',
+      content,
+      contentType,
+      editorKey: pageLike.editorKey || pageLike.editor || '',
+      extra: pageLike.extra || {}
+    }
+
+    let output = content
+    for (let core of pipeline) {
+      const renderer = require(`../modules/rendering/${_.kebabCase(core.key)}/renderer.js`)
+      output = await renderer.render.call({
+        config: core.config,
+        children: core.children,
+        page,
+        input: output
+      })
+    }
+    return output
+  }
+
+  /**
    * Fetch an Existing Page from Cache if possible, from DB otherwise and save render to Cache
    *
    * @param {Object} opts Page Properties
@@ -999,6 +1063,9 @@ module.exports = class Page extends Model {
           'pages.localeCode',
           'pages.authorId',
           'pages.creatorId',
+          'pages.guestName',
+          'pages.guestEmail',
+          'pages.authorIp',
           'pages.extra',
           {
             authorName: 'author.name',

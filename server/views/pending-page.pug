@@ -1,0 +1,25 @@
+extends master.pug
+
+block body
+  #root
+    pending-page(
+      :review-id=review.id
+      title=review.title
+      description=review.description
+      path=review.path
+      locale=review.locale
+      change-reason=review.changeReason
+      content=review.content
+      status=review.status
+      author-name=review.authorName
+      author-email=review.authorEmail
+      author-ip=review.authorIp
+      created-at=review.createdAt
+      updated-at=review.updatedAt
+      :is-author=isAuthor.toString()
+      :can-approve=canApprove.toString()
+      :has-live-page=(!!hasLivePage).toString()
+      effective-permissions=Buffer.from(JSON.stringify(effectivePermissions)).toString('base64')
+      )
+      template(slot='contents')
+        div!= review.render

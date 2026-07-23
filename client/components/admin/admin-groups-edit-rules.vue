@@ -215,6 +215,8 @@ export default {
       roles: [
         { text: 'Read Pages', value: 'read:pages', icon: 'mdi-file-eye-outline' },
         { text: 'Create + Edit Pages', value: 'write:pages', icon: 'mdi-file-plus-outline' },
+        { text: 'Submit Pages for Review', value: 'write:pages:pending', icon: 'mdi-file-clock-outline' },
+        { text: 'Approve Page Reviews', value: 'approve:pages', icon: 'mdi-file-check-outline' },
         { text: 'Rename / Move Pages', value: 'manage:pages', icon: 'mdi-file-document-edit-outline' },
         { text: 'Delete Pages', value: 'delete:pages', icon: 'mdi-file-remove-outline' },
         { text: 'View Pages Source', value: 'read:source', icon: 'mdi-code-tags' },

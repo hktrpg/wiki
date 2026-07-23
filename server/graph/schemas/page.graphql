@@ -222,6 +222,8 @@ type PageHistory {
   versionDate: Date!
   authorId: Int!
   authorName: String!
+  authorEmail: String
+  authorIP: String
   actionType: String!
   valueBefore: String
   valueAfter: String
