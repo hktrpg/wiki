@@ -130,7 +130,9 @@ module.exports = async () => {
     title: '',
     description: WIKI.config.description,
     image: '',
-    url: '/'
+    url: '/',
+    robots: '',
+    jsonLd: ''
   }
   app.locals.devMode = WIKI.devMode
 

@@ -11,13 +11,34 @@ html(lang=siteConfig.lang)
     title= pageMeta.title + ' | ' + config.title
 
     //- SEO / OpenGraph
-    meta(name='description', content=pageMeta.description)
+    -
+      var robotsMeta = pageMeta.robots || (config.seo && config.seo.robots && config.seo.robots.length ? config.seo.robots.join(', ') : 'index, follow')
+      var ogImage = pageMeta.image || ''
+      if (!ogImage && config.logoUrl) {
+        ogImage = config.logoUrl
+        if (ogImage.indexOf('http') !== 0) {
+          var hostBase = (config.host || '').replace(/\/$/, '')
+          ogImage = hostBase + (ogImage.charAt(0) === '/' ? '' : '/') + ogImage
+        }
+      }
+      var metaDescription = pageMeta.description || (config.seo && config.seo.description) || ''
+    meta(name='description', content=metaDescription)
+    meta(name='robots', content=robotsMeta)
+    link(rel='canonical', href=pageMeta.url)
     meta(property='og:title', content=pageMeta.title)
     meta(property='og:type', content='website')
-    meta(property='og:description', content=pageMeta.description)
-    meta(property='og:image', content=pageMeta.image)
+    meta(property='og:description', content=metaDescription)
+    if ogImage
+      meta(property='og:image', content=ogImage)
     meta(property='og:url', content=pageMeta.url)
     meta(property='og:site_name', content=config.title)
+    meta(name='twitter:card', content='summary_large_image')
+    meta(name='twitter:title', content=pageMeta.title)
+    meta(name='twitter:description', content=metaDescription)
+    if ogImage
+      meta(name='twitter:image', content=ogImage)
+    if pageMeta.jsonLd
+      script(type='application/ld+json')!= pageMeta.jsonLd
 
     //- Favicon
     link(rel='apple-touch-icon', sizes='180x180', href='/_assets/favicons/apple-touch-icon.png')

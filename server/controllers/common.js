@@ -1,6 +1,8 @@
 const express = require('express')
 const router = express.Router()
 const pageHelper = require('../helpers/page')
+const sitemapHelper = require('../helpers/sitemap')
+const seoHelper = require('../helpers/seo')
 const _ = require('lodash')
 const CleanCSS = require('clean-css')
 const moment = require('moment')
@@ -45,7 +47,11 @@ async function tryRenderPendingPreview (req, res, { pendingReview, pageArgs, eff
     WIKI.logger.warn(err)
     renderHtml = pendingReview.content || ''
   }
-  _.set(res.locals, 'pageMeta.title', pendingReview.title || 'Pending Review')
+  seoHelper.applyPageMeta(res, {
+    title: pendingReview.title || 'Pending Review',
+    description: pendingReview.description || '',
+    robots: 'noindex, nofollow'
+  })
   res.render('pending-page', {
     review: {
       id: pendingReview.id,
@@ -79,7 +85,31 @@ router.get('/robots.txt', (req, res, next) => {
   if (_.includes(WIKI.config.seo.robots, 'noindex')) {
     res.send('User-agent: *\nDisallow: /')
   } else {
-    res.status(200).end()
+    const host = sitemapHelper.getHost()
+    res.send([
+      'User-agent: *',
+      'Allow: /',
+      'Disallow: /a',
+      'Disallow: /e',
+      'Disallow: /login',
+      'Disallow: /register',
+      'Disallow: /p',
+      'Disallow: /s',
+      'Disallow: /h',
+      `Sitemap: ${host}/sitemap.xml`
+    ].join('\n'))
+  }
+})
+
+/**
+ * Sitemap.xml — published public pages only
+ */
+router.get('/sitemap.xml', async (req, res, next) => {
+  try {
+    const xml = await sitemapHelper.generateXml()
+    res.type('application/xml').send(xml)
+  } catch (err) {
+    next(err)
   }
 })
 
@@ -109,11 +139,11 @@ router.get(['/a', '/a/*'], (req, res, next) => {
     'manage:api',
     'approve:pages'
   ])) {
-    _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+    seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
     return res.status(403).render('unauthorized', { action: 'view' })
   }
 
-  _.set(res.locals, 'pageMeta.title', 'Admin')
+  seoHelper.applyPageMeta(res, { title: 'Admin', robots: 'noindex, nofollow' })
   res.render('admin')
 })
 
@@ -203,7 +233,7 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
   if (page) {
     // -> EDIT MODE
     if (!(effectivePermissions.pages.write || effectivePermissions.pages.manage || effectivePermissions.pages.pending)) {
-      _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+      seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
       return res.status(403).render('unauthorized', { action: 'edit' })
     }
 
@@ -244,19 +274,22 @@ router.get(['/e', '/e/*'], async (req, res, next) => {
       }
     }
 
-    _.set(res.locals, 'pageMeta.title', `Edit ${page.title}`)
-    _.set(res.locals, 'pageMeta.description', page.description)
+    seoHelper.applyPageMeta(res, {
+      title: `Edit ${page.title}`,
+      description: page.description,
+      robots: 'noindex, nofollow'
+    })
     page.mode = 'update'
     page.isPublished = (page.isPublished === true || page.isPublished === 1) ? 'true' : 'false'
     page.content = Buffer.from(page.content).toString('base64')
   } else {
     // -> CREATE MODE
     if (!(effectivePermissions.pages.write || effectivePermissions.pages.pending)) {
-      _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+      seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
       return res.status(403).render('unauthorized', { action: 'create' })
     }
 
-    _.set(res.locals, 'pageMeta.title', `New Page`)
+    seoHelper.applyPageMeta(res, { title: 'New Page', robots: 'noindex, nofollow' })
     page = {
       path: pageArgs.path,
       localeCode: pageArgs.locale,
@@ -381,13 +414,16 @@ router.get(['/h', '/h/*'], async (req, res, next) => {
   const effectivePermissions = WIKI.auth.getEffectivePermissions(req, pageArgs)
 
   if (!effectivePermissions.history.read) {
-    _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+    seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
     return res.render('unauthorized', { action: 'history' })
   }
 
   if (page) {
-    _.set(res.locals, 'pageMeta.title', page.title)
-    _.set(res.locals, 'pageMeta.description', page.description)
+    seoHelper.applyPageMeta(res, {
+      title: page.title,
+      description: page.description,
+      robots: 'noindex, nofollow'
+    })
 
     const revealHistoryPii = WIKI.auth.checkAccess(req.user, ['manage:system']) ||
       WIKI.auth.checkAccess(req.user, ['approve:pages'], pageArgs)
@@ -445,7 +481,7 @@ router.get(['/p', '/p/*'], (req, res, next) => {
     return res.status(403).render('unauthorized', { action: 'view' })
   }
 
-  _.set(res.locals, 'pageMeta.title', 'User Profile')
+  seoHelper.applyPageMeta(res, { title: 'User Profile', robots: 'noindex, nofollow' })
   res.render('profile')
 })
 
@@ -477,12 +513,12 @@ router.get(['/s', '/s/*'], async (req, res, next) => {
 
   if (versionId > 0) {
     if (!effectivePermissions.history.read) {
-      _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+      seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
       return res.status(403).render('unauthorized', { action: 'sourceVersion' })
     }
   } else {
     if (!effectivePermissions.source.read) {
-      _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+      seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
       return res.status(403).render('unauthorized', { action: 'source' })
     }
   }
@@ -490,8 +526,11 @@ router.get(['/s', '/s/*'], async (req, res, next) => {
   if (page) {
     if (versionId > 0) {
       const pageVersion = await WIKI.models.pageHistory.getVersion({ pageId: page.id, versionId })
-      _.set(res.locals, 'pageMeta.title', pageVersion.title)
-      _.set(res.locals, 'pageMeta.description', pageVersion.description)
+      seoHelper.applyPageMeta(res, {
+        title: pageVersion.title,
+        description: pageVersion.description,
+        robots: 'noindex, nofollow'
+      })
       res.render('source', {
         page: {
           ...page,
@@ -500,8 +539,11 @@ router.get(['/s', '/s/*'], async (req, res, next) => {
         effectivePermissions
       })
     } else {
-      _.set(res.locals, 'pageMeta.title', page.title)
-      _.set(res.locals, 'pageMeta.description', page.description)
+      seoHelper.applyPageMeta(res, {
+        title: page.title,
+        description: page.description,
+        robots: 'noindex, nofollow'
+      })
 
       res.render('source', { page, effectivePermissions })
     }
@@ -514,7 +556,7 @@ router.get(['/s', '/s/*'], async (req, res, next) => {
  * Tags
  */
 router.get(['/t', '/t/*'], (req, res, next) => {
-  _.set(res.locals, 'pageMeta.title', 'Tags')
+  seoHelper.applyPageMeta(res, { title: 'Tags', schema: 'WebPage' })
   res.render('tags')
 })
 
@@ -573,7 +615,7 @@ router.get('/*', async (req, res, next) => {
         if (pageArgs.path === 'home' && req.user.id === 2) {
           return res.redirect('/login')
         }
-        _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+        seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
         return res.status(403).render('unauthorized', {
           action: 'view'
         })
@@ -583,8 +625,13 @@ router.get('/*', async (req, res, next) => {
       _.set(res, 'locals.siteConfig.rtl', req.i18n.dir() === 'rtl')
 
       if (page) {
-        _.set(res.locals, 'pageMeta.title', page.title)
-        _.set(res.locals, 'pageMeta.description', page.description)
+        seoHelper.applyPageMeta(res, {
+          title: page.title,
+          description: page.description,
+          schema: 'Article',
+          dateModified: page.updatedAt,
+          datePublished: page.createdAt
+        })
 
         // -> Pending edit preview (?view=pending)
         const pendingForPath = await WIKI.models.pageReviews.getPendingByPath({
@@ -611,7 +658,7 @@ router.get('/*', async (req, res, next) => {
           pageIsPublished = moment(page.publishEndDate).isSameOrAfter()
         }
         if (!pageIsPublished && !effectivePermissions.pages.write) {
-          _.set(res.locals, 'pageMeta.title', 'Unauthorized')
+          seoHelper.applyPageMeta(res, { title: 'Unauthorized', robots: 'noindex, nofollow' })
           return res.status(403).render('unauthorized', {
             action: 'view'
           })
@@ -720,7 +767,7 @@ router.get('/*', async (req, res, next) => {
           })
         }
       } else if (pageArgs.path === 'home') {
-        _.set(res.locals, 'pageMeta.title', 'Welcome')
+        seoHelper.applyPageMeta(res, { title: 'Welcome', schema: 'WebPage' })
         res.render('welcome', { locale: pageArgs.locale })
       } else {
         // -> Pending new-page preview for author / approver
@@ -737,7 +784,7 @@ router.get('/*', async (req, res, next) => {
           return
         }
 
-        _.set(res.locals, 'pageMeta.title', 'Page Not Found')
+        seoHelper.applyPageMeta(res, { title: 'Page Not Found', robots: 'noindex, nofollow' })
         if (effectivePermissions.pages.write || effectivePermissions.pages.pending) {
           res.status(404).render('new', { path: pageArgs.path, locale: pageArgs.locale })
         } else {

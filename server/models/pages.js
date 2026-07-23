@@ -12,6 +12,7 @@ const CleanCSS = require('clean-css')
 const TurndownService = require('turndown')
 const turndownPluginGfm = require('@joplin/turndown-plugin-gfm').gfm
 const cheerio = require('cheerio')
+const sitemapHelper = require('../helpers/sitemap')
 
 /* global WIKI */
 
@@ -369,6 +370,7 @@ module.exports = class Page extends Model {
     // -> Get latest updatedAt
     page.updatedAt = await WIKI.models.pages.query().findById(page.id).select('updatedAt').then(r => r.updatedAt)
 
+    sitemapHelper.invalidate()
     return page
   }
 
@@ -507,6 +509,7 @@ module.exports = class Page extends Model {
     // -> Get latest updatedAt
     page.updatedAt = await WIKI.models.pages.query().findById(page.id).select('updatedAt').then(r => r.updatedAt)
 
+    sitemapHelper.invalidate()
     return page
   }
 
@@ -802,6 +805,8 @@ module.exports = class Page extends Model {
       path: opts.destinationPath,
       mode: 'create'
     })
+
+    sitemapHelper.invalidate()
   }
 
   /**
@@ -856,6 +861,8 @@ module.exports = class Page extends Model {
       path: page.path,
       mode: 'delete'
     })
+
+    sitemapHelper.invalidate()
   }
 
   /**
