@@ -67,3 +67,7 @@ _Avoid_: Ad-hoc DB inserts; scraping hooks that publish live pins with no review
 **AI Analysis**:
 A process that turns unstructured input (text, URL, bulk notes) into one or more Event Drafts — suggested title, Occurrence, Canonical Position, Chronicle Tags — for human review.
 _Avoid_: AI as the source of truth; AI that only fills a form with no draft record
+
+**Map Mode**:
+How an Era Map is presented in Map View: `2d`, `3d`, or `both` (user-switchable). Events still use a 2D Canonical Position by default; 3D is primarily a presentation concern, with optional elevation later.
+_Avoid_: Separate 2D-only and 3D-only Era Map entity types; treating 3D as a different aggregate
