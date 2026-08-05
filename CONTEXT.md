@@ -55,3 +55,15 @@ _Avoid_: Separate “simple embed map” and “full map” products with differ
 **Chronicle Embed**:
 A Map View instance placed inside a Wiki Page, usually with a locked or narrowed scope (one Chronicle, Era Map, Tag set, or Event focus). Same underlying Map View as the master route.
 _Avoid_: Static thumbnail that is not a Map View; treating the embed as a second data store
+
+**Event Draft**:
+A proposed Event (from Ingest API or AI Analysis) that is not yet a live pin. Becomes an Event only after human confirmation. Same fields as Event, different lifecycle.
+_Avoid_: Writing AI/API output straight to live Events; a separate parallel data model unrelated to Event
+
+**Ingest API**:
+An HTTP/GraphQL API for submitting structured Event or Event Draft payloads from external systems. Does not bypass confirmation when the payload is marked as draft/AI-sourced.
+_Avoid_: Ad-hoc DB inserts; scraping hooks that publish live pins with no review path
+
+**AI Analysis**:
+A process that turns unstructured input (text, URL, bulk notes) into one or more Event Drafts — suggested title, Occurrence, Canonical Position, Chronicle Tags — for human review.
+_Avoid_: AI as the source of truth; AI that only fills a form with no draft record
