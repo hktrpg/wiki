@@ -15,3 +15,15 @@ _Avoid_: Page (for the pin), marker-only stub with no domain identity
 **Era Map**:
 A dated basemap (2D imagery or 3D scene) owned by a Chronicle, covering a time range. Multiple Era Maps coexist; each can be aligned to a shared spatial reference so the same Event can appear across eras despite scale and position drift.
 _Avoid_: Layer (as the map entity), basemap-only asset with no era identity
+
+**Canonical Position**:
+The Event's single authoritative location in the Chronicle's shared spatial reference (typically modern lat/lng, or a custom CRS for fictional worlds). Default source for projecting pins onto every Era Map.
+_Avoid_: Per-map coordinates (as the primary store), "roughly around here" without a stored point
+
+**Alignment**:
+A transform on an Era Map (control points / warp) that maps Canonical Positions onto that basemap's pixel or local space, correcting scale and position drift between eras.
+_Avoid_: Manual re-pinning every Event per map, ad-hoc UI pan/zoom offsets
+
+**Pin Override**:
+An optional per–Event-per–Era-Map position that replaces the Alignment projection when the default transform is wrong for that pin. Escape hatch only — Canonical Position remains the default.
+_Avoid_: Making per-map pins the normal path for every Event
