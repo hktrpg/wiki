@@ -91,3 +91,7 @@ _Avoid_: AI silently publishing live basemaps; calling this a third aggregate be
 **Footprint**:
 Optional line or polygon geometry on an Event that shows extent (building, road stretch, district). Canonical Position remains required; Footprint does not replace it for alignment, overrides, or default AI geocoding.
 _Avoid_: Polygon-only Events with no point; treating Footprint as the primary pin
+
+**Chronicle Permission**:
+Access rules owned by the Chronicle domain — read map data, write Events, approve Event Drafts / Derived Basemaps, and manage Era Maps / Alignment. Independent of Wiki Page permissions; may be global or per-Chronicle via groups.
+_Avoid_: Inferring Chronicle edit rights from “can edit this wiki page”; admin-only as the only write model
