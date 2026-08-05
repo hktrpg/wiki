@@ -43,3 +43,7 @@ _Avoid_: Page Tag (for map filters), global taxonomy shared across unrelated Chr
 **Page Tag**:
 The existing Wiki.js flat tag on a Wiki Page. Used only for wiki content; not the primary map filter. An Event's linked Pages keep their own Page Tags.
 _Avoid_: Reusing Page Tags as the Chronicle's event taxonomy
+
+**Chronicle Overlay**:
+An optional map view mode that shows Events (and optionally Era Maps) from more than one Chronicle on the same canvas, with each Chronicle toggleable. Chronicles remain separate aggregates; overlay is a view concern, not a merge of data.
+_Avoid_: World Layer inside a single Chronicle; permanently merging taxonomies or alignments across Chronicles
