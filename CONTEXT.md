@@ -35,3 +35,11 @@ _Avoid_: "Date" alone when an interval or fuzzy span is meant; publication date 
 **Visibility Override**:
 An optional per–Event-per–Era-Map force include or force exclude that replaces the default Occurrence∩Era-Map time-range rule.
 _Avoid_: Manually listing every Era Map for every Event as the normal path
+
+**Chronicle Tag**:
+A Chronicle-scoped label for filtering and grouping Events on maps (e.g. haunt, traffic death, urban, outlying islands). Independent of Wiki.js Page Tags.
+_Avoid_: Page Tag (for map filters), global taxonomy shared across unrelated Chronicles
+
+**Page Tag**:
+The existing Wiki.js flat tag on a Wiki Page. Used only for wiki content; not the primary map filter. An Event's linked Pages keep their own Page Tags.
+_Avoid_: Reusing Page Tags as the Chronicle's event taxonomy
