@@ -120,6 +120,20 @@ function canRead (user) {
   return WIKI.auth.checkAccess(user, ['read:chronicles', 'write:chronicles', 'manage:chronicles', 'manage:system'])
 }
 
+function filterChronicleForViewer (chronicle, { includeDrafts = false, includeUnpublished = false } = {}) {
+  if (!chronicle) { return null }
+  const clone = { ...chronicle }
+  clone.eraMaps = (chronicle.eraMaps || []).filter(em => {
+    if (em.status === 'live') { return true }
+    return includeDrafts || includeUnpublished
+  })
+  clone.events = (chronicle.events || []).filter(ev => {
+    if (ev.status === 'live') { return true }
+    return includeDrafts
+  })
+  return clone
+}
+
 module.exports = {
   Query: {
     async chronicles () { return {} }
@@ -140,6 +154,7 @@ module.exports = {
         throw new Error('Forbidden')
       }
       const includeUnpublished = canManage(context.req.user)
+      const includeDrafts = canApprove(context.req.user)
       let chronicle = null
       if (args.id) {
         chronicle = await WIKI.models.chronicles.query()
@@ -155,19 +170,20 @@ module.exports = {
       if (!chronicle.isPublished && !includeUnpublished) {
         return null
       }
-      return mapChronicle(chronicle)
+      return mapChronicle(filterChronicleForViewer(chronicle, { includeDrafts, includeUnpublished }))
     },
     async mapView (obj, args, context) {
       if (!canRead(context.req.user)) {
         throw new Error('Forbidden')
       }
       const includeUnpublished = canManage(context.req.user)
+      const includeDrafts = canApprove(context.req.user)
       const slugs = [args.slug, ...(args.overlaySlugs || [])].filter(Boolean)
       const chronicles = []
       for (const slug of slugs) {
         const c = await WIKI.models.chronicles.getBySlug(slug, { includeUnpublished })
         if (c) {
-          chronicles.push(c)
+          chronicles.push(filterChronicleForViewer(c, { includeDrafts, includeUnpublished }))
         }
       }
       if (!chronicles.length) {
@@ -179,21 +195,22 @@ module.exports = {
         eraMap = (primary.eraMaps || []).find(e => e.id === args.eraMapId) || null
       }
       if (!eraMap) {
-        eraMap = (primary.eraMaps || []).find(e => e.status === 'live') || (primary.eraMaps || [])[0] || null
+        eraMap = (primary.eraMaps || []).find(e => e.status === 'live') || null
       }
 
       const pins = []
       for (const c of chronicles) {
-        const maps = eraMap && c.id === primary.id ?
-          [eraMap] :
-          (c.eraMaps || []).filter(e => e.status === 'live')
-        const active = maps[0]
+        // Overlay chronicles project onto the primary Era Map when available,
+        // so pins share one spatial frame (Canonical Position / overrides).
+        const active = (c.id === primary.id ? eraMap : null) ||
+          (c.eraMaps || []).find(e => e.status === 'live') ||
+          null
         if (!active) {
           continue
         }
         const projected = WIKI.models.chronicleEvents.projectForEraMap(c.events || [], active, {
           tags: args.tags,
-          includeDrafts: canApprove(context.req.user)
+          includeDrafts
         })
         pins.push(...projected)
       }
@@ -321,14 +338,22 @@ module.exports = {
         return graphHelper.generateError(err)
       }
     },
-    async updateEvent (obj, args) {
+    async updateEvent (obj, args, context) {
       try {
+        const existing = await WIKI.models.chronicleEvents.query().findById(args.id)
+        if (!existing) {
+          throw new Error('EVENT_NOT_FOUND')
+        }
         const patch = { ...args }
         if (args.footprint !== undefined) {
           patch.footprint = parseJsonArg(args.footprint, null)
         }
         if (args.aiMeta !== undefined) {
           patch.aiMeta = parseJsonArg(args.aiMeta, null)
+        }
+        // Promoting draft → live requires approve (or manage), not write alone.
+        if (args.status === 'live' && existing.status === 'draft' && !canApprove(context.req.user)) {
+          throw new Error('Forbidden')
         }
         const event = await WIKI.models.chronicleEvents.update(args.id, patch)
         return {
@@ -362,6 +387,14 @@ module.exports = {
     },
     async setPinOverride (obj, args) {
       try {
+        const event = await WIKI.models.chronicleEvents.query().findById(args.eventId)
+        if (!event) {
+          throw new Error('EVENT_NOT_FOUND')
+        }
+        const eraMap = await WIKI.models.chronicleEraMaps.query().findById(args.eraMapId)
+        if (!eraMap || eraMap.chronicleId !== event.chronicleId) {
+          throw new Error('ERA_MAP_MISMATCH')
+        }
         const existing = await WIKI.models.chroniclePinOverrides.query()
           .where({ eventId: args.eventId, eraMapId: args.eraMapId })
           .first()
@@ -382,12 +415,12 @@ module.exports = {
             mapY: args.mapY != null ? args.mapY : null
           })
         }
-        const event = await WIKI.models.chronicleEvents.query()
+        const updated = await WIKI.models.chronicleEvents.query()
           .findById(args.eventId)
           .withGraphFetched('[tags, pages, pinOverrides, visibilityOverrides]')
         return {
           responseResult: graphHelper.generateSuccess('Pin override saved'),
-          event: mapEvent(event)
+          event: mapEvent(updated)
         }
       } catch (err) {
         return graphHelper.generateError(err)
@@ -414,6 +447,14 @@ module.exports = {
         if (!['include', 'exclude'].includes(args.mode)) {
           throw new Error('INVALID_MODE')
         }
+        const event = await WIKI.models.chronicleEvents.query().findById(args.eventId)
+        if (!event) {
+          throw new Error('EVENT_NOT_FOUND')
+        }
+        const eraMap = await WIKI.models.chronicleEraMaps.query().findById(args.eraMapId)
+        if (!eraMap || eraMap.chronicleId !== event.chronicleId) {
+          throw new Error('ERA_MAP_MISMATCH')
+        }
         const existing = await WIKI.models.chronicleVisibilityOverrides.query()
           .where({ eventId: args.eventId, eraMapId: args.eraMapId })
           .first()
@@ -426,12 +467,12 @@ module.exports = {
             mode: args.mode
           })
         }
-        const event = await WIKI.models.chronicleEvents.query()
+        const updated = await WIKI.models.chronicleEvents.query()
           .findById(args.eventId)
           .withGraphFetched('[tags, pages, pinOverrides, visibilityOverrides]')
         return {
           responseResult: graphHelper.generateSuccess('Visibility override saved'),
-          event: mapEvent(event)
+          event: mapEvent(updated)
         }
       } catch (err) {
         return graphHelper.generateError(err)

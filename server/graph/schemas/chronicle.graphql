@@ -168,7 +168,7 @@ type ChronicleMutation {
     lng: Float!
     tags: [String]
     aiMeta: String
-  ): ChronicleEventResponse @auth(requires: ["write:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+  ): ChronicleEventResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
 
   analyzeText(
     chronicleId: Int!
