@@ -169,6 +169,12 @@ type ChronicleMutation {
     tags: [String]
     aiMeta: String
   ): ChronicleEventResponse @auth(requires: ["write:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  analyzeText(
+    chronicleId: Int!
+    text: String!
+    persist: Boolean
+  ): ChronicleAnalyzeResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 10, duration: 60)
 }
 
 # -----------------------------------------------
@@ -282,4 +288,10 @@ type ChronicleEraMapResponse {
 type ChronicleEventResponse {
   responseResult: ResponseStatus
   event: ChronicleEvent
+}
+
+type ChronicleAnalyzeResponse {
+  responseResult: ResponseStatus
+  suggestions: [ChronicleEvent]!
+  events: [ChronicleEvent]!
 }

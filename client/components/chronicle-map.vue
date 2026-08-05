@@ -30,6 +30,22 @@
           style='max-width: 240px;'
           @change='reload'
         )
+        v-select.chronicle-select(
+          v-if='!embedded && overlayChoices.length'
+          v-model='activeOverlays'
+          :items='overlayChoices'
+          item-text='title'
+          item-value='slug'
+          dense
+          outlined
+          hide-details
+          multiple
+          chips
+          small-chips
+          label='Overlay Chronicles'
+          style='max-width: 320px;'
+          @change='reload'
+        )
         v-chip-group(v-if='tagOptions.length', column)
           v-chip(
             v-for='t in tagOptions'
@@ -145,6 +161,7 @@ export default {
       slug: this.initialSlug || '',
       eraMapId: this.initialEraMapId,
       selectedTags: [...(this.initialTags || [])],
+      activeOverlays: [...(this.overlaySlugs || [])],
       chronicleOptions: [],
       eraMapOptions: [],
       tagOptions: [],
@@ -156,6 +173,11 @@ export default {
       tileLayer: null
     }
   },
+  computed: {
+    overlayChoices () {
+      return (this.chronicleOptions || []).filter(c => c.slug !== this.slug)
+    }
+  },
   methods: {
     toggleTag (t) {
       if (this.selectedTags.includes(t)) {
@@ -165,13 +187,18 @@ export default {
       }
       this.reload()
     },
-    async ensureSlug () {
-      if (this.slug) { return }
+    async loadChronicleList () {
       const resp = await this.$apollo.query({
         query: LIST_QUERY,
         fetchPolicy: 'network-only'
       })
       this.chronicleOptions = _.get(resp, 'data.chronicles.list', [])
+    },
+    async ensureSlug () {
+      if (!this.chronicleOptions.length) {
+        await this.loadChronicleList()
+      }
+      if (this.slug) { return }
       if (this.chronicleOptions.length) {
         this.slug = this.chronicleOptions[0].slug
       }
@@ -179,6 +206,7 @@ export default {
     async reload () {
       await this.ensureSlug()
       if (!this.slug) { return }
+      const overlays = (this.activeOverlays || []).filter(s => s && s !== this.slug)
       const resp = await this.$apollo.query({
         query: MAP_VIEW_QUERY,
         fetchPolicy: 'network-only',
@@ -186,16 +214,13 @@ export default {
           slug: this.slug,
           eraMapId: this.eraMapId || undefined,
           tags: this.selectedTags.length ? this.selectedTags : undefined,
-          overlaySlugs: this.overlaySlugs.length ? this.overlaySlugs : undefined
+          overlaySlugs: overlays.length ? overlays : undefined
         }
       })
       const view = _.get(resp, 'data.chronicles.mapView')
       if (!view) { return }
       const primary = (view.chronicles || [])[0]
       this.title = primary ? primary.title : 'Chronicle Map'
-      if (!this.chronicleOptions.length) {
-        this.chronicleOptions = (view.chronicles || []).map(c => ({ slug: c.slug, title: c.title }))
-      }
       this.eraMapOptions = primary ? (primary.eraMaps || []).filter(e => e.status === 'live' || !e.status) : []
       this.tagOptions = primary ? (primary.tags || []).map(t => t.tag) : []
       if (!this.eraMapId && view.activeEraMap) {
@@ -223,7 +248,8 @@ export default {
         config = {}
       }
 
-      if (eraMap && eraMap.basemapSource === 'uploaded' && config.imageUrl && config.bounds) {
+      const useImage = eraMap && ['uploaded', 'derived'].includes(eraMap.basemapSource) && config.imageUrl && config.bounds
+      if (useImage) {
         this.tileLayer = L.imageOverlay(config.imageUrl, config.bounds).addTo(this.map)
         this.map.fitBounds(config.bounds)
       } else {
@@ -258,11 +284,11 @@ export default {
     this.$refs.mapEl.style.height = this.embedded ? (this.height || '420px') : this.height
     if (!this.slug && !this.embedded) {
       const parts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')
-      // /chronicle or /chronicle/:slug
       if (parts[0] === 'chronicle' && parts[1]) {
         this.slug = decodeURIComponent(parts[1])
       }
     }
+    await this.loadChronicleList()
     await this.reload()
   },
   beforeDestroy () {

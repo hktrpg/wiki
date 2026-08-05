@@ -1,4 +1,5 @@
 const graphHelper = require('../../helpers/graph')
+const chronicleAi = require('../../helpers/chronicle-ai')
 const _ = require('lodash')
 
 /* global WIKI */
@@ -463,6 +464,63 @@ module.exports = {
         return {
           responseResult: graphHelper.generateSuccess('Event draft ingested'),
           event: mapEvent(event)
+        }
+      } catch (err) {
+        return graphHelper.generateError(err)
+      }
+    },
+    async analyzeText (obj, args, context) {
+      try {
+        const chronicle = await WIKI.models.chronicles.query().findById(args.chronicleId)
+        if (!chronicle) {
+          throw new Error('CHRONICLE_NOT_FOUND')
+        }
+        const suggestions = chronicleAi.analyzeTextToDrafts(args.text)
+        const mappedSuggestions = suggestions.map((s, idx) => mapEvent({
+          id: -(idx + 1),
+          chronicleId: args.chronicleId,
+          title: s.title,
+          summary: s.summary,
+          occurrenceStart: s.occurrenceStart,
+          occurrenceEnd: s.occurrenceEnd,
+          occurrenceFuzzy: s.occurrenceFuzzy,
+          lat: s.lat,
+          lng: s.lng,
+          status: 'draft',
+          tags: (s.tags || []).map((t, i) => ({ id: i, tag: t, title: t })),
+          pages: [],
+          pinOverrides: [],
+          visibilityOverrides: [],
+          aiMeta: s.aiMeta,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }))
+
+        const events = []
+        if (args.persist !== false) {
+          for (const s of suggestions) {
+            const event = await WIKI.models.chronicleEvents.create({
+              chronicleId: args.chronicleId,
+              title: s.title,
+              summary: s.summary,
+              occurrenceStart: s.occurrenceStart,
+              occurrenceEnd: s.occurrenceEnd,
+              occurrenceFuzzy: s.occurrenceFuzzy,
+              lat: s.lat,
+              lng: s.lng,
+              tags: s.tags,
+              status: 'draft',
+              aiMeta: s.aiMeta,
+              userId: context.req.user.id
+            })
+            events.push(mapEvent(event))
+          }
+        }
+
+        return {
+          responseResult: graphHelper.generateSuccess(`Analyzed ${suggestions.length} candidate event(s)`),
+          suggestions: mappedSuggestions,
+          events
         }
       } catch (err) {
         return graphHelper.generateError(err)
