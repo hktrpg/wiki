@@ -87,3 +87,7 @@ _Avoid_: Treating uploads as already georeferenced without Alignment
 **Derived Basemap**:
 A Basemap Source produced by AI/API conversion from an image or other map (e.g. suggested Alignment control points, cleaned tile asset). Stored as a draft asset until a human confirms and attaches it to an Era Map.
 _Avoid_: AI silently publishing live basemaps; calling this a third aggregate beside Era Map
+
+**Footprint**:
+Optional line or polygon geometry on an Event that shows extent (building, road stretch, district). Canonical Position remains required; Footprint does not replace it for alignment, overrides, or default AI geocoding.
+_Avoid_: Polygon-only Events with no point; treating Footprint as the primary pin
