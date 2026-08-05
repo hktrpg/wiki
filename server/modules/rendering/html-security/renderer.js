@@ -7,8 +7,8 @@ module.exports = {
       const window = new JSDOM('').window
       const DOMPurify = createDOMPurify(window)
 
-      const allowedAttrs = ['v-pre', 'v-slot:tabs', 'v-slot:content', 'target']
-      const allowedTags = ['tabset', 'template']
+      const allowedAttrs = ['v-pre', 'v-slot:tabs', 'v-slot:content', 'target', 'slug', 'tags', 'era-map-id', 'height']
+      const allowedTags = ['tabset', 'template', 'chronicle-embed']
 
       if (config.allowDrawIoUnsafe) {
         allowedTags.push('foreignObject')

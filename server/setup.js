@@ -248,7 +248,7 @@ module.exports = () => {
       })
       const guestGroup = await WIKI.models.groups.query().insert({
         name: 'Guests',
-        permissions: JSON.stringify(['read:pages', 'read:assets', 'read:comments', 'write:comments', 'write:pages:pending']),
+        permissions: JSON.stringify(['read:pages', 'read:assets', 'read:comments', 'write:comments', 'write:pages:pending', 'read:chronicles']),
         pageRules: JSON.stringify([
           { id: 'guest', roles: ['read:pages', 'read:assets', 'read:comments', 'write:comments', 'write:pages:pending'], match: 'START', deny: false, path: '', locales: [] }
         ]),
