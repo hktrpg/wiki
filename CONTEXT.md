@@ -27,3 +27,11 @@ _Avoid_: Manual re-pinning every Event per map, ad-hoc UI pan/zoom offsets
 **Pin Override**:
 An optional per–Event-per–Era-Map position that replaces the Alignment projection when the default transform is wrong for that pin. Escape hatch only — Canonical Position remains the default.
 _Avoid_: Making per-map pins the normal path for every Event
+
+**Occurrence**:
+When an Event happened — a point or interval on the Chronicle timeline (may be approximate). Used to decide default Era Map visibility by intersection with each Era Map's time range.
+_Avoid_: "Date" alone when an interval or fuzzy span is meant; publication date of the wiki page
+
+**Visibility Override**:
+An optional per–Event-per–Era-Map force include or force exclude that replaces the default Occurrence∩Era-Map time-range rule.
+_Avoid_: Manually listing every Era Map for every Event as the normal path
