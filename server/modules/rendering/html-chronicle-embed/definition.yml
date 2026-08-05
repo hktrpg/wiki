@@ -1,0 +1,8 @@
+key: htmlChronicleEmbed
+title: Chronicle Embed
+description: Embed a Chronicle Map View from a fenced chronicle-embed code block
+author: hktrpg
+icon: mdi-map-marker-radius
+enabledDefault: true
+dependsOn: htmlCore
+props: {}

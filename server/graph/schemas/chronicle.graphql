@@ -1,0 +1,297 @@
+# ===============================================
+# CHRONICLES
+# ===============================================
+
+extend type Query {
+  chronicles: ChronicleQuery
+}
+
+extend type Mutation {
+  chronicles: ChronicleMutation
+}
+
+# -----------------------------------------------
+# QUERIES
+# -----------------------------------------------
+
+type ChronicleQuery {
+  list(
+    includeUnpublished: Boolean
+  ): [ChronicleListItem]! @auth(requires: ["read:chronicles", "write:chronicles", "manage:chronicles", "manage:system"])
+
+  single(
+    id: Int
+    slug: String
+  ): Chronicle @auth(requires: ["read:chronicles", "write:chronicles", "manage:chronicles", "manage:system"])
+
+  mapView(
+    slug: String!
+    eraMapId: Int
+    tags: [String]
+    overlaySlugs: [String]
+  ): ChronicleMapView @auth(requires: ["read:chronicles", "manage:system"])
+
+  drafts(
+    chronicleId: Int!
+  ): [ChronicleEvent]! @auth(requires: ["approve:chronicles", "manage:chronicles", "manage:system"])
+}
+
+# -----------------------------------------------
+# MUTATIONS
+# -----------------------------------------------
+
+type ChronicleMutation {
+  create(
+    slug: String
+    title: String!
+    description: String
+    isPublished: Boolean
+  ): ChronicleResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 20, duration: 60)
+
+  update(
+    id: Int!
+    slug: String
+    title: String
+    description: String
+    isPublished: Boolean
+  ): ChronicleResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  delete(
+    id: Int!
+  ): DefaultResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 10, duration: 60)
+
+  createEraMap(
+    chronicleId: Int!
+    title: String!
+    timeStart: String
+    timeEnd: String
+    mapMode: String
+    basemapSource: String
+    basemapConfig: String
+    alignment: String
+    status: String
+    sortIndex: Int
+  ): ChronicleEraMapResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  updateEraMap(
+    id: Int!
+    title: String
+    timeStart: String
+    timeEnd: String
+    mapMode: String
+    basemapSource: String
+    basemapConfig: String
+    alignment: String
+    status: String
+    sortIndex: Int
+  ): ChronicleEraMapResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  deleteEraMap(
+    id: Int!
+  ): DefaultResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 10, duration: 60)
+
+  createEvent(
+    chronicleId: Int!
+    title: String!
+    summary: String
+    occurrenceStart: String
+    occurrenceEnd: String
+    occurrenceFuzzy: Boolean
+    lat: Float!
+    lng: Float!
+    elevation: Float
+    footprint: String
+    tags: [String]
+    pageIds: [Int]
+    status: String
+    aiMeta: String
+  ): ChronicleEventResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 60, duration: 60)
+
+  updateEvent(
+    id: Int!
+    title: String
+    summary: String
+    occurrenceStart: String
+    occurrenceEnd: String
+    occurrenceFuzzy: Boolean
+    lat: Float
+    lng: Float
+    elevation: Float
+    footprint: String
+    tags: [String]
+    pageIds: [Int]
+    status: String
+    aiMeta: String
+  ): ChronicleEventResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 60, duration: 60)
+
+  approveEventDraft(
+    id: Int!
+  ): ChronicleEventResponse @auth(requires: ["approve:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  deleteEvent(
+    id: Int!
+  ): DefaultResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  setPinOverride(
+    eventId: Int!
+    eraMapId: Int!
+    lat: Float
+    lng: Float
+    mapX: Float
+    mapY: Float
+  ): ChronicleEventResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 60, duration: 60)
+
+  clearPinOverride(
+    eventId: Int!
+    eraMapId: Int!
+  ): ChronicleEventResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  setVisibilityOverride(
+    eventId: Int!
+    eraMapId: Int!
+    mode: String!
+  ): ChronicleEventResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 60, duration: 60)
+
+  clearVisibilityOverride(
+    eventId: Int!
+    eraMapId: Int!
+  ): ChronicleEventResponse @auth(requires: ["manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  ingestEventDraft(
+    chronicleId: Int!
+    title: String!
+    summary: String
+    occurrenceStart: String
+    occurrenceEnd: String
+    occurrenceFuzzy: Boolean
+    lat: Float!
+    lng: Float!
+    tags: [String]
+    aiMeta: String
+  ): ChronicleEventResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 30, duration: 60)
+
+  analyzeText(
+    chronicleId: Int!
+    text: String!
+    persist: Boolean
+  ): ChronicleAnalyzeResponse @auth(requires: ["write:chronicles", "manage:chronicles", "manage:system"]) @rateLimit(limit: 10, duration: 60)
+}
+
+# -----------------------------------------------
+# TYPES
+# -----------------------------------------------
+
+type ChronicleListItem {
+  id: Int!
+  slug: String!
+  title: String!
+  description: String!
+  isPublished: Boolean!
+  createdAt: Date!
+  updatedAt: Date!
+}
+
+type Chronicle {
+  id: Int!
+  slug: String!
+  title: String!
+  description: String!
+  isPublished: Boolean!
+  tags: [ChronicleTag]!
+  eraMaps: [ChronicleEraMap]!
+  events: [ChronicleEvent]!
+  createdAt: Date!
+  updatedAt: Date!
+}
+
+type ChronicleTag {
+  id: Int!
+  tag: String!
+  title: String!
+}
+
+type ChronicleEraMap {
+  id: Int!
+  chronicleId: Int!
+  title: String!
+  timeStart: String!
+  timeEnd: String!
+  mapMode: String!
+  basemapSource: String!
+  basemapConfig: String!
+  alignment: String!
+  status: String!
+  sortIndex: Int!
+  createdAt: Date!
+  updatedAt: Date!
+}
+
+type ChronicleEvent {
+  id: Int!
+  chronicleId: Int!
+  title: String!
+  summary: String!
+  occurrenceStart: String!
+  occurrenceEnd: String!
+  occurrenceFuzzy: Boolean!
+  lat: Float!
+  lng: Float!
+  elevation: Float
+  footprint: String
+  status: String!
+  tags: [ChronicleTag]!
+  pageIds: [Int]!
+  pinOverrides: [ChroniclePinOverride]!
+  visibilityOverrides: [ChronicleVisibilityOverride]!
+  displayLat: Float
+  displayLng: Float
+  positionSource: String
+  aiMeta: String
+  createdAt: Date!
+  updatedAt: Date!
+  approvedAt: Date
+}
+
+type ChroniclePinOverride {
+  id: Int!
+  eventId: Int!
+  eraMapId: Int!
+  lat: Float
+  lng: Float
+  mapX: Float
+  mapY: Float
+}
+
+type ChronicleVisibilityOverride {
+  id: Int!
+  eventId: Int!
+  eraMapId: Int!
+  mode: String!
+}
+
+type ChronicleMapView {
+  chronicles: [Chronicle]!
+  activeEraMap: ChronicleEraMap
+  pins: [ChronicleEvent]!
+}
+
+type ChronicleResponse {
+  responseResult: ResponseStatus
+  chronicle: Chronicle
+}
+
+type ChronicleEraMapResponse {
+  responseResult: ResponseStatus
+  eraMap: ChronicleEraMap
+}
+
+type ChronicleEventResponse {
+  responseResult: ResponseStatus
+  event: ChronicleEvent
+}
+
+type ChronicleAnalyzeResponse {
+  responseResult: ResponseStatus
+  suggestions: [ChronicleEvent]!
+  events: [ChronicleEvent]!
+}

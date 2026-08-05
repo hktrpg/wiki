@@ -393,6 +393,7 @@
 <script>
 import { StatusIndicator } from 'vue-status-indicator'
 import Tabset from './tabset.vue'
+import ChronicleEmbed from './chronicle-embed.vue'
 import NavSidebar from './nav-sidebar.vue'
 import Prism from 'prismjs'
 import mermaid from 'mermaid'
@@ -405,6 +406,7 @@ import gql from 'graphql-tag'
 /* global siteLangs */
 
 Vue.component('Tabset', Tabset)
+Vue.component('ChronicleEmbed', ChronicleEmbed)
 
 Prism.plugins.autoloader.languages_path = '/_assets/js/prism/'
 Prism.plugins.NormalizeWhitespace.setDefaults({

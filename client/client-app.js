@@ -170,6 +170,7 @@ Vue.component('Register', () => import(/* webpackChunkName: "register" */ './com
 Vue.component('SearchResults', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/search-results.vue'))
 Vue.component('SocialSharing', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/social-sharing.vue'))
 Vue.component('Tags', () => import(/* webpackChunkName: "tags" */ './components/tags.vue'))
+Vue.component('ChronicleMap', () => import(/* webpackChunkName: "chronicle" */ './components/chronicle-map.vue'))
 Vue.component('Unauthorized', () => import(/* webpackChunkName: "unauthorized" */ './components/unauthorized.vue'))
 Vue.component('VCardChin', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/v-card-chin.vue'))
 Vue.component('VCardInfo', () => import(/* webpackPrefetch: true, webpackChunkName: "ui-extra" */ './components/common/v-card-info.vue'))

@@ -561,6 +561,18 @@ router.get(['/t', '/t/*'], (req, res, next) => {
 })
 
 /**
+ * Chronicle Map
+ */
+router.get(['/chronicle', '/chronicle/*'], (req, res, next) => {
+  if (!WIKI.auth.checkAccess(req.user, ['read:chronicles', 'manage:system'])) {
+    seoHelper.applyPageMeta(res, { title: 'Unauthorized', schema: 'WebPage' })
+    return res.status(403).render('unauthorized')
+  }
+  seoHelper.applyPageMeta(res, { title: 'Chronicle Map', schema: 'WebPage' })
+  res.render('chronicle')
+})
+
+/**
  * User Avatar
  */
 router.get('/_userav/:uid', async (req, res, next) => {

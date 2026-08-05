@@ -155,6 +155,34 @@ export default {
               warning: false,
               restrictedForSystem: true,
               disabled: false
+            },
+            {
+              permission: 'read:chronicles',
+              hint: 'Can view Chronicle maps and event pins',
+              warning: false,
+              restrictedForSystem: false,
+              disabled: false
+            },
+            {
+              permission: 'write:chronicles',
+              hint: 'Can create and edit Chronicle events (and submit drafts)',
+              warning: false,
+              restrictedForSystem: true,
+              disabled: false
+            },
+            {
+              permission: 'approve:chronicles',
+              hint: 'Can approve Event Drafts and Derived Basemaps',
+              warning: true,
+              restrictedForSystem: true,
+              disabled: false
+            },
+            {
+              permission: 'manage:chronicles',
+              hint: 'Can create Chronicles, Era Maps, Alignment, and manage all chronicle data',
+              warning: true,
+              restrictedForSystem: true,
+              disabled: false
             }
           ]
         },
