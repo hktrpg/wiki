@@ -71,3 +71,19 @@ _Avoid_: AI as the source of truth; AI that only fills a form with no draft reco
 **Map Mode**:
 How an Era Map is presented in Map View: `2d`, `3d`, or `both` (user-switchable). Events still use a 2D Canonical Position by default; 3D is primarily a presentation concern, with optional elevation later.
 _Avoid_: Separate 2D-only and 3D-only Era Map entity types; treating 3D as a different aggregate
+
+**Basemap Source**:
+Where an Era Map's imagery or tiles come from. One of: Public Basemap, Uploaded Basemap, or Derived Basemap. Source type lives on the Era Map; it is not a separate aggregate.
+_Avoid_: Iframe-only external maps outside the Chronicle model; one-off assets with no source metadata
+
+**Public Basemap**:
+A Basemap Source that connects to an open or configured tile/map provider (e.g. OSM, satellite, government open layers) by provider id or URL. Preferred for real-world geographies already in a known CRS.
+_Avoid_: Re-uploading public tiles as static images when a provider works
+
+**Uploaded Basemap**:
+A Basemap Source from manually uploaded imagery or tile packs — fantasy maps, scanned historical maps, custom art. Usually requires Alignment.
+_Avoid_: Treating uploads as already georeferenced without Alignment
+
+**Derived Basemap**:
+A Basemap Source produced by AI/API conversion from an image or other map (e.g. suggested Alignment control points, cleaned tile asset). Stored as a draft asset until a human confirms and attaches it to an Era Map.
+_Avoid_: AI silently publishing live basemaps; calling this a third aggregate beside Era Map
