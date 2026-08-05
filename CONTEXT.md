@@ -47,3 +47,11 @@ _Avoid_: Reusing Page Tags as the Chronicle's event taxonomy
 **Chronicle Overlay**:
 An optional map view mode that shows Events (and optionally Era Maps) from more than one Chronicle on the same canvas, with each Chronicle toggleable. Chronicles remain separate aggregates; overlay is a view concern, not a merge of data.
 _Avoid_: World Layer inside a single Chronicle; permanently merging taxonomies or alignments across Chronicles
+
+**Map View**:
+The single interactive map experience for exploring Chronicles — Era Maps, Event pins, filters, overlays, and (for editors) alignment tools. Reused everywhere; not duplicated per surface.
+_Avoid_: Separate “simple embed map” and “full map” products with different data rules
+
+**Chronicle Embed**:
+A Map View instance placed inside a Wiki Page, usually with a locked or narrowed scope (one Chronicle, Era Map, Tag set, or Event focus). Same underlying Map View as the master route.
+_Avoid_: Static thumbnail that is not a Map View; treating the embed as a second data store
