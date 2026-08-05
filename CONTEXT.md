@@ -11,3 +11,7 @@ _Avoid_: Map collection, project, atlas (as the top-level container)
 **Event**:
 A pin-able record inside a Chronicle — title, summary, when/where it occurred, and tags. May optionally link to one or more Wiki Pages for long-form detail; the pin itself is not a Page.
 _Avoid_: Page (for the pin), marker-only stub with no domain identity
+
+**Era Map**:
+A dated basemap (2D imagery or 3D scene) owned by a Chronicle, covering a time range. Multiple Era Maps coexist; each can be aligned to a shared spatial reference so the same Event can appear across eras despite scale and position drift.
+_Avoid_: Layer (as the map entity), basemap-only asset with no era identity
